@@ -6,19 +6,16 @@ project(l2net
     LANGUAGES CXX
 )
 
-# because apparently standards are optional for some people
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# options - for people who can read documentation
 option(L2NET_BUILD_TESTS "Build the test suite (requires root to run)" ON)
 option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" ON)
 option(L2NET_BUILD_APPS "Build example applications" ON)
 option(L2NET_ENABLE_SANITIZERS "Enable ASan/UBSan for debug builds" OFF)
 
-# fetch dependencies like a civilized developer
 include(FetchContent)
 
 FetchContent_Declare(
@@ -54,7 +51,6 @@ endif()
 
 FetchContent_MakeAvailable(fmt expected)
 
-# compiler warnings - because your code needs adult supervision
 add_library(l2net_warnings INTERFACE)
 target_compile_options(l2net_warnings INTERFACE
     $<$<CXX_COMPILER_ID:GNU,Clang>:
@@ -66,7 +62,6 @@ target_compile_options(l2net_warnings INTERFACE
     >
 )
 
-# sanitizers for debug builds
 if(L2NET_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_library(l2net_sanitizers INTERFACE)
     target_compile_options(l2net_sanitizers INTERFACE
@@ -78,7 +73,9 @@ if(L2NET_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 endif()
 
-# the actual library - where your sins get absolved
+# FIXED: Statically link stdlib to fix CXXABI errors on older OS
+add_link_options(-static-libstdc++ -static-libgcc)
+
 add_library(l2net
     src/interface.cpp
     src/raw_socket.cpp
@@ -103,10 +100,8 @@ target_link_libraries(l2net
         $<$<TARGET_EXISTS:l2net_sanitizers>:l2net_sanitizers>
 )
 
-# alias for modern cmake usage
 add_library(l2net::l2net ALIAS l2net)
 
-# applications - if you insist on running this
 if(L2NET_BUILD_APPS)
     add_executable(hybrid_chat apps/hybrid_chat_app.cpp)
     target_link_libraries(hybrid_chat PRIVATE l2net::l2net l2net_warnings)
@@ -115,11 +110,9 @@ if(L2NET_BUILD_APPS)
     target_link_libraries(ipc_l2 PRIVATE l2net::l2net l2net_warnings)
 endif()
 
-# tests - because trusting your code blindly is insane
 if(L2NET_BUILD_TESTS)
     enable_testing()
 
-    # unit tests
     add_executable(l2net_unit_tests
         tests/unit/main.cpp
         tests/unit/test_interface.cpp
@@ -134,7 +127,6 @@ if(L2NET_BUILD_TESTS)
     )
     add_test(NAME unit_tests COMMAND l2net_unit_tests)
 
-    # integration tests - requires root
     add_executable(l2net_integration_tests
         tests/integration/main.cpp
         tests/integration/test_localhost.cpp
@@ -149,7 +141,6 @@ if(L2NET_BUILD_TESTS)
     add_test(NAME integration_tests COMMAND l2net_integration_tests)
 endif()
 
-# benchmarks - for when you want to cry about performance
 if(L2NET_BUILD_BENCHMARKS)
     add_executable(l2net_benchmarks
         bench/main.cpp
@@ -164,7 +155,6 @@ if(L2NET_BUILD_BENCHMARKS)
     )
 endif()
 
-# installation - for people who actually ship software
 include(GNUInstallDirs)
 install(TARGETS l2net
     EXPORT l2netTargets

@@ -9,8 +9,6 @@
 namespace l2net
 {
 
-    // ... [frame_builder implementation is fine] ...
-
     auto frame_builder::build() noexcept -> result<std::vector<std::uint8_t>>
     {
         auto const total_size = required_size();
@@ -34,11 +32,13 @@ namespace l2net
         {
             return tl::unexpected{error_code::buffer_too_small};
         }
+
         std::copy_n(dest_mac_.data(), 6, buffer.data());
         std::copy_n(src_mac_.data(), 6, buffer.data() + 6);
-        auto const net_type = htons(ether_type_);
-        buffer[12] = static_cast<std::uint8_t>(net_type >> 8);
-        buffer[13] = static_cast<std::uint8_t>(net_type & 0xFF);
+
+        buffer[12] = static_cast<std::uint8_t>(ether_type_ >> 8);
+        buffer[13] = static_cast<std::uint8_t>(ether_type_ & 0xFF);
+
         if (!buffer_.empty())
         {
             std::copy(buffer_.begin(), buffer_.end(), buffer.begin() + constants::eth_header_size);
@@ -56,13 +56,8 @@ namespace l2net
         finalized_ = false;
     }
 
-    // ============================================================================
-    // frame_parser implementation
-    // ============================================================================
-
     frame_parser::frame_parser(std::span<std::uint8_t const> data) noexcept
     {
-        // FIXED: Cast to void to ignore nodiscard return value
         (void)parse(data);
     }
 
@@ -77,6 +72,7 @@ namespace l2net
             return false;
         }
 
+        // Read Big Endian bytes back into host integer
         auto const type_field = static_cast<std::uint16_t>(
             (static_cast<std::uint16_t>(data[12]) << 8) | data[13]);
 
@@ -92,8 +88,6 @@ namespace l2net
         valid_ = true;
         return true;
     }
-
-    // ... [rest of file identical to previous] ...
 
     auto frame_parser::dest_mac() const noexcept -> mac_address
     {
