@@ -1,156 +1,449 @@
-#pragma once
+// raw_socket.cpp - raw socket implementation
+// the part where we actually create sockets without embarrassing ourselves
 
-// raw_socket.hpp - RAII wrapper for raw sockets
-// because your naked file descriptors give me nightmares
+#include "l2net/raw_socket.hpp"
 
-#include "common.hpp"
-#include "interface.hpp"
+#include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
+#include <net/ethernet.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <netpacket/packet.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <thread> // FIXED: Added missing include for sleep_for
+#include <unistd.h>
 
-#include <chrono>
-#include <span>
-#include <optional>
+namespace l2net
+{
 
-namespace l2net {
+    // ... [The rest of the file content remains identical, omitting for brevity since only the include changed] ...
+    // Just ensure you keep the rest of the implementation as it was in your previous upload.
+    // For safety, I will output the whole file content below to avoid confusion.
 
-// ============================================================================
-// socket options - because magic numbers in setsockopt are disgusting
-// ============================================================================
+    // ============================================================================
+    // raw_socket implementation
+    // ============================================================================
 
-struct socket_options {
-    std::optional<std::chrono::milliseconds> recv_timeout{};
-    std::optional<std::chrono::milliseconds> send_timeout{};
-    bool reuse_addr{false};
-    bool broadcast{false};
-    std::optional<int> recv_buffer_size{};
-    std::optional<int> send_buffer_size{};
-};
-
-// ============================================================================
-// raw socket - the star of the show, now with proper resource management
-// ============================================================================
-
-class raw_socket {
-public:
-    // socket protocol types
-    enum class protocol : std::uint16_t {
-        all = 0x0003,      // ETH_P_ALL - receive everything
-        custom = 0x88B5,   // our custom protocol
-        ipc = 0xAAAA,      // ipc protocol
-        vlan = 0x8100,     // 802.1Q
-    };
-
-private:
-    int fd_{-1};
-    protocol proto_{protocol::all};
-    std::optional<interface_info> bound_interface_{};
-
-public:
-    // rule of 5 - because we own a resource
-    raw_socket() noexcept = default;
-    ~raw_socket() noexcept;
-
-    // no copying - sockets are unique resources, unlike your copy-paste code
-    raw_socket(raw_socket const&) = delete;
-    auto operator=(raw_socket const&) -> raw_socket& = delete;
-
-    // move semantics - the civilized way to transfer ownership
-    raw_socket(raw_socket&& other) noexcept;
-    auto operator=(raw_socket&& other) noexcept -> raw_socket&;
-
-    // factory functions - because constructors that can fail are stupid
-    [[nodiscard]] static auto create(protocol proto = protocol::all) noexcept
-        -> result<raw_socket>;
-
-    [[nodiscard]] static auto create_bound(
-        interface_info const& iface,
-        protocol proto = protocol::all
-    ) noexcept -> result<raw_socket>;
-
-    // socket operations
-    [[nodiscard]] auto bind(interface_info const& iface) noexcept -> void_result;
-    [[nodiscard]] auto set_options(socket_options const& opts) noexcept -> void_result;
-
-    // send/receive - the whole point of this exercise
-    [[nodiscard]] auto send_to(
-        std::span<std::uint8_t const> data,
-        interface_info const& iface,
-        mac_address const& dest_mac
-    ) noexcept -> result<std::size_t>;
-
-    [[nodiscard]] auto send_raw(
-        std::span<std::uint8_t const> data,
-        interface_info const& iface
-    ) noexcept -> result<std::size_t>;
-
-    [[nodiscard]] auto receive(
-        std::span<std::uint8_t> buffer
-    ) noexcept -> result<std::size_t>;
-
-    [[nodiscard]] auto receive_with_timeout(
-        std::span<std::uint8_t> buffer,
-        std::chrono::milliseconds timeout
-    ) noexcept -> result<std::size_t>;
-
-    // state queries
-    [[nodiscard]] constexpr auto is_valid() const noexcept -> bool { return fd_ >= 0; }
-    [[nodiscard]] constexpr auto fd() const noexcept -> int { return fd_; }
-    [[nodiscard]] constexpr auto protocol_type() const noexcept -> protocol { return proto_; }
-    [[nodiscard]] auto bound_interface() const noexcept -> std::optional<interface_info> const& {
-        return bound_interface_;
+    raw_socket::raw_socket(int const fd, protocol const proto) noexcept
+        : fd_{fd}, proto_{proto}
+    {
     }
 
-    // explicit close
-    auto close() noexcept -> void;
+    raw_socket::~raw_socket() noexcept
+    {
+        close();
+    }
 
-private:
-    // internal constructor for factory
-    explicit raw_socket(int fd, protocol proto) noexcept;
-};
+    raw_socket::raw_socket(raw_socket &&other) noexcept
+        : fd_{std::exchange(other.fd_, -1)}, proto_{other.proto_}, bound_interface_{std::move(other.bound_interface_)}
+    {
+    }
 
-// ============================================================================
-// tcp socket for control plane - minimal wrapper for handshake
-// ============================================================================
+    auto raw_socket::operator=(raw_socket &&other) noexcept -> raw_socket &
+    {
+        if (this != &other)
+        {
+            close();
+            fd_ = std::exchange(other.fd_, -1);
+            proto_ = other.proto_;
+            bound_interface_ = std::move(other.bound_interface_);
+        }
+        return *this;
+    }
 
-class tcp_socket {
-private:
-    int fd_{-1};
+    auto raw_socket::create(protocol const proto) noexcept -> result<raw_socket>
+    {
+        auto const fd = ::socket(AF_PACKET, SOCK_RAW, htons(static_cast<std::uint16_t>(proto)));
 
-public:
-    tcp_socket() noexcept = default;
-    ~tcp_socket() noexcept;
+        if (fd < 0)
+        {
+            if (errno == EPERM || errno == EACCES)
+            {
+                return tl::unexpected{error_code::permission_denied};
+            }
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
 
-    tcp_socket(tcp_socket const&) = delete;
-    auto operator=(tcp_socket const&) -> tcp_socket& = delete;
+        return raw_socket{fd, proto};
+    }
 
-    tcp_socket(tcp_socket&& other) noexcept;
-    auto operator=(tcp_socket&& other) noexcept -> tcp_socket&;
+    auto raw_socket::create_bound(
+        interface_info const &iface,
+        protocol const proto) noexcept -> result<raw_socket>
+    {
+        auto sock_result = create(proto);
+        if (!sock_result.has_value())
+        {
+            return sock_result;
+        }
 
-    // server operations
-    [[nodiscard]] static auto create_server(std::uint16_t port) noexcept
-        -> result<tcp_socket>;
+        auto bind_result = sock_result->bind(iface);
+        if (!bind_result.has_value())
+        {
+            return tl::unexpected{bind_result.error()};
+        }
 
-    [[nodiscard]] auto accept() noexcept -> result<tcp_socket>;
+        return sock_result;
+    }
 
-    // client operations
-    [[nodiscard]] static auto connect(
-        std::string_view ip,
-        std::uint16_t port,
-        std::chrono::seconds timeout = std::chrono::seconds{10}
-    ) noexcept -> result<tcp_socket>;
+    auto raw_socket::bind(interface_info const &iface) noexcept -> void_result
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
 
-    // data transfer
-    [[nodiscard]] auto send(std::span<std::uint8_t const> data) noexcept
-        -> result<std::size_t>;
+        struct sockaddr_ll sll{};
+        sll.sll_family = AF_PACKET;
+        sll.sll_protocol = htons(static_cast<std::uint16_t>(proto_));
+        sll.sll_ifindex = iface.index();
 
-    [[nodiscard]] auto receive(std::span<std::uint8_t> buffer) noexcept
-        -> result<std::size_t>;
+        if (::bind(fd_, reinterpret_cast<struct sockaddr *>(&sll), sizeof(sll)) < 0)
+        {
+            return tl::unexpected{error_code::socket_bind_failed};
+        }
 
-    [[nodiscard]] constexpr auto is_valid() const noexcept -> bool { return fd_ >= 0; }
+        bound_interface_ = iface;
+        return {};
+    }
 
-    auto close() noexcept -> void;
+    auto raw_socket::set_options(socket_options const &opts) noexcept -> void_result
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
 
-private:
-    explicit tcp_socket(int fd) noexcept;
-};
+        if (opts.recv_timeout.has_value())
+        {
+            struct timeval tv{};
+            auto const ms = opts.recv_timeout->count();
+            tv.tv_sec = ms / 1000;
+            tv.tv_usec = (ms % 1000) * 1000;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        if (opts.send_timeout.has_value())
+        {
+            struct timeval tv{};
+            auto const ms = opts.send_timeout->count();
+            tv.tv_sec = ms / 1000;
+            tv.tv_usec = (ms % 1000) * 1000;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        if (opts.reuse_addr)
+        {
+            int const opt = 1;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        if (opts.broadcast)
+        {
+            int const opt = 1;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        if (opts.recv_buffer_size.has_value())
+        {
+            int const size = *opts.recv_buffer_size;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        if (opts.send_buffer_size.has_value())
+        {
+            int const size = *opts.send_buffer_size;
+            if (::setsockopt(fd_, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0)
+            {
+                return tl::unexpected{error_code::socket_bind_failed};
+            }
+        }
+
+        return {};
+    }
+
+    auto raw_socket::send_to(
+        std::span<std::uint8_t const> data,
+        interface_info const &iface,
+        mac_address const &dest_mac) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        struct sockaddr_ll addr{};
+        addr.sll_family = AF_PACKET;
+        addr.sll_ifindex = iface.index();
+        addr.sll_halen = ETH_ALEN;
+        std::copy_n(dest_mac.data(), ETH_ALEN, addr.sll_addr);
+
+        auto const sent = ::sendto(fd_, data.data(), data.size(), 0,
+                                   reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+
+        if (sent < 0)
+        {
+            return tl::unexpected{error_code::socket_send_failed};
+        }
+
+        return static_cast<std::size_t>(sent);
+    }
+
+    auto raw_socket::send_raw(
+        std::span<std::uint8_t const> data,
+        interface_info const &iface) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        struct sockaddr_ll addr{};
+        addr.sll_family = AF_PACKET;
+        addr.sll_ifindex = iface.index();
+        addr.sll_halen = ETH_ALEN;
+        // dest mac is in the frame already
+
+        auto const sent = ::sendto(fd_, data.data(), data.size(), 0,
+                                   reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+
+        if (sent < 0)
+        {
+            return tl::unexpected{error_code::socket_send_failed};
+        }
+
+        return static_cast<std::size_t>(sent);
+    }
+
+    auto raw_socket::receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        auto const received = ::recv(fd_, buffer.data(), buffer.size(), 0);
+
+        if (received < 0)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                return tl::unexpected{error_code::timeout};
+            }
+            return tl::unexpected{error_code::socket_recv_failed};
+        }
+
+        return static_cast<std::size_t>(received);
+    }
+
+    auto raw_socket::receive_with_timeout(
+        std::span<std::uint8_t> buffer,
+        std::chrono::milliseconds timeout) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        struct pollfd pfd{};
+        pfd.fd = fd_;
+        pfd.events = POLLIN;
+
+        auto const ret = ::poll(&pfd, 1, static_cast<int>(timeout.count()));
+
+        if (ret < 0)
+        {
+            return tl::unexpected{error_code::socket_recv_failed};
+        }
+        if (ret == 0)
+        {
+            return tl::unexpected{error_code::timeout};
+        }
+
+        return receive(buffer);
+    }
+
+    auto raw_socket::close() noexcept -> void
+    {
+        if (fd_ >= 0)
+        {
+            ::close(fd_);
+            fd_ = -1;
+        }
+        bound_interface_.reset();
+    }
+
+    // ============================================================================
+    // tcp_socket implementation
+    // ============================================================================
+
+    tcp_socket::tcp_socket(int const fd) noexcept : fd_{fd} {}
+
+    tcp_socket::~tcp_socket() noexcept
+    {
+        close();
+    }
+
+    tcp_socket::tcp_socket(tcp_socket &&other) noexcept
+        : fd_{std::exchange(other.fd_, -1)}
+    {
+    }
+
+    auto tcp_socket::operator=(tcp_socket &&other) noexcept -> tcp_socket &
+    {
+        if (this != &other)
+        {
+            close();
+            fd_ = std::exchange(other.fd_, -1);
+        }
+        return *this;
+    }
+
+    auto tcp_socket::create_server(std::uint16_t const port) noexcept -> result<tcp_socket>
+    {
+        auto const fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0)
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        int const opt = 1;
+        if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+        {
+            ::close(fd);
+            return tl::unexpected{error_code::socket_bind_failed};
+        }
+
+        struct sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(port);
+
+        if (::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) < 0)
+        {
+            ::close(fd);
+            return tl::unexpected{error_code::socket_bind_failed};
+        }
+
+        if (::listen(fd, 1) < 0)
+        {
+            ::close(fd);
+            return tl::unexpected{error_code::socket_bind_failed};
+        }
+
+        return tcp_socket{fd};
+    }
+
+    auto tcp_socket::accept() noexcept -> result<tcp_socket>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        auto const client_fd = ::accept(fd_, nullptr, nullptr);
+        if (client_fd < 0)
+        {
+            return tl::unexpected{error_code::connection_failed};
+        }
+
+        return tcp_socket{client_fd};
+    }
+
+    auto tcp_socket::connect(
+        std::string_view const ip,
+        std::uint16_t const port,
+        std::chrono::seconds const timeout) noexcept -> result<tcp_socket>
+    {
+        auto const fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0)
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        struct sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+
+        // need null-terminated string for inet_pton
+        std::string ip_str{ip};
+        if (::inet_pton(AF_INET, ip_str.c_str(), &addr.sin_addr) != 1)
+        {
+            ::close(fd);
+            return tl::unexpected{error_code::connection_failed};
+        }
+
+        auto const deadline = std::chrono::steady_clock::now() + timeout;
+
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+            if (::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0)
+            {
+                return tcp_socket{fd};
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{100});
+        }
+
+        ::close(fd);
+        return tl::unexpected{error_code::connection_failed};
+    }
+
+    auto tcp_socket::send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        auto const sent = ::send(fd_, data.data(), data.size(), 0);
+        if (sent < 0)
+        {
+            return tl::unexpected{error_code::socket_send_failed};
+        }
+
+        return static_cast<std::size_t>(sent);
+    }
+
+    auto tcp_socket::receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>
+    {
+        if (!is_valid())
+        {
+            return tl::unexpected{error_code::socket_creation_failed};
+        }
+
+        auto const received = ::recv(fd_, buffer.data(), buffer.size(), 0);
+        if (received < 0)
+        {
+            return tl::unexpected{error_code::socket_recv_failed};
+        }
+
+        return static_cast<std::size_t>(received);
+    }
+
+    auto tcp_socket::close() noexcept -> void
+    {
+        if (fd_ >= 0)
+        {
+            ::close(fd_);
+            fd_ = -1;
+        }
+    }
 
 } // namespace l2net
