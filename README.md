@@ -104,7 +104,3 @@ sudo tcpdump -i lo -X ether proto 0xAAAA
   * **Hybrid Data Protocol:** `0x88B5`
   * **VLAN Tag:** ID `10`, Priority `7`
   * **IPC Protocol:** `0xAAAA`
-
-<!-- end list -->
-
-```
