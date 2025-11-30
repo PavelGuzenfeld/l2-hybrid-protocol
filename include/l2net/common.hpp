@@ -47,7 +47,6 @@ namespace l2net
         timeout,
     };
 
-    // hidden friend for fmt compatibility - yes, this is the correct pattern
     struct error_code_formatter
     {
         [[nodiscard]] static constexpr auto to_string(error_code const ec) noexcept
@@ -88,19 +87,14 @@ namespace l2net
             case error_code::timeout:
                 return "timeout";
             }
-            return "unknown_error"; // unreachable but compilers whine
+            return "unknown_error";
         }
     };
 
-    // result type - the civilized way to handle errors
     template <typename T>
     using result = tl::expected<T, error_code>;
 
     using void_result = tl::expected<void, error_code>;
-
-    // ============================================================================
-    // mac_address - a proper type instead of your unsigned char[6] nonsense
-    // ============================================================================
 
     class mac_address
     {
@@ -112,7 +106,6 @@ namespace l2net
         storage_type bytes_{};
 
     public:
-        // defaulted special members - rule of zero baby
         constexpr mac_address() noexcept = default;
         constexpr mac_address(mac_address const &) noexcept = default;
         constexpr mac_address(mac_address &&) noexcept = default;
@@ -120,41 +113,27 @@ namespace l2net
         constexpr auto operator=(mac_address &&) noexcept -> mac_address & = default;
         constexpr ~mac_address() noexcept = default;
 
-        // construct from raw bytes - for when you're interfacing with C garbage
-        constexpr explicit mac_address(storage_type const &bytes) noexcept
-            : bytes_{bytes}
-        {
-        }
+        constexpr explicit mac_address(storage_type const &bytes) noexcept : bytes_{bytes} {}
 
-        // construct from individual bytes - for the masochists
         constexpr mac_address(
             std::uint8_t const b0, std::uint8_t const b1, std::uint8_t const b2,
-            std::uint8_t const b3, std::uint8_t const b4, std::uint8_t const b5) noexcept
-            : bytes_{b0, b1, b2, b3, b4, b5}
-        {
-        }
+            std::uint8_t const b3, std::uint8_t const b4, std::uint8_t const b5) noexcept : bytes_{b0, b1, b2, b3, b4, b5} {}
 
-        // parse from string "aa:bb:cc:dd:ee:ff" - error handling included, you're welcome
-        [[nodiscard]] static auto from_string(std::string_view str) noexcept
-            -> result<mac_address>;
+        [[nodiscard]] static auto from_string(std::string_view str) noexcept -> result<mac_address>;
 
-        // accessors
         [[nodiscard]] constexpr auto data() noexcept -> std::uint8_t * { return bytes_.data(); }
         [[nodiscard]] constexpr auto data() const noexcept -> std::uint8_t const * { return bytes_.data(); }
         [[nodiscard]] constexpr auto bytes() const noexcept -> storage_type const & { return bytes_; }
         [[nodiscard]] constexpr auto as_span() noexcept -> std::span<std::uint8_t, size> { return bytes_; }
         [[nodiscard]] constexpr auto as_span() const noexcept -> std::span<std::uint8_t const, size> { return bytes_; }
 
-        // format to string
         [[nodiscard]] auto to_string() const -> std::string;
 
-        // broadcast address
         [[nodiscard]] static consteval auto broadcast() noexcept -> mac_address
         {
             return mac_address{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         }
 
-        // null/zero address
         [[nodiscard]] static consteval auto null() noexcept -> mac_address
         {
             return mac_address{};
@@ -175,19 +154,13 @@ namespace l2net
             return (bytes_[0] & 0x01) != 0;
         }
 
-        // comparison - spaceship operator like civilized people
         [[nodiscard]] constexpr auto operator<=>(mac_address const &) const noexcept = default;
 
-        // hidden friend for fmt
         friend auto format_as(mac_address const &mac) -> std::string
         {
             return mac.to_string();
         }
     };
-
-    // ============================================================================
-    // constants - because magic numbers are for children
-    // ============================================================================
 
     namespace constants
     {
@@ -197,27 +170,20 @@ namespace l2net
         inline constexpr std::uint16_t min_frame_size = 64;
         inline constexpr std::uint16_t max_frame_size = 1518;
         inline constexpr std::uint16_t max_jumbo_frame_size = 9000;
-        // FIXED: Changed to uint32_t to avoid overflow (65536 > uint16_t max)
+        // FIXED: Changed to uint32_t to avoid overflow
         inline constexpr std::uint32_t loopback_mtu = 65536;
 
-        // ethernet types
         inline constexpr std::uint16_t eth_p_8021q = 0x8100;
         inline constexpr std::uint16_t eth_p_custom = 0x88B5;
         inline constexpr std::uint16_t eth_p_ipc = 0xAAAA;
 
-        // vlan limits
         inline constexpr std::uint16_t max_vlan_id = 4095;
         inline constexpr std::uint8_t max_priority = 7;
     }
 
-    // ============================================================================
-    // byte utilities - for when you need to deal with network byte order
-    // ============================================================================
-
     namespace byte_utils
     {
-        [[nodiscard]] constexpr auto htons_constexpr(std::uint16_t const value) noexcept
-            -> std::uint16_t
+        [[nodiscard]] constexpr auto htons_constexpr(std::uint16_t const value) noexcept -> std::uint16_t
         {
             if constexpr (std::endian::native == std::endian::little)
             {
@@ -229,16 +195,14 @@ namespace l2net
             }
         }
 
-        [[nodiscard]] constexpr auto ntohs_constexpr(std::uint16_t const value) noexcept
-            -> std::uint16_t
+        [[nodiscard]] constexpr auto ntohs_constexpr(std::uint16_t const value) noexcept -> std::uint16_t
         {
-            return htons_constexpr(value); // same operation, just semantic clarity
+            return htons_constexpr(value);
         }
     }
 
 } // namespace l2net
 
-// fmt formatter specialization for error_code
 template <>
 struct fmt::formatter<l2net::error_code> : fmt::formatter<std::string_view>
 {

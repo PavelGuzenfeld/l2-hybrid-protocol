@@ -1,6 +1,10 @@
 // raw_socket.cpp - raw socket implementation
 // the part where we actually create sockets without embarrassing ourselves
 
+// GCC false positive suppression for std::optional<std::string>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+
 #include "l2net/raw_socket.hpp"
 
 #include <arpa/inet.h>
@@ -12,15 +16,11 @@
 #include <netpacket/packet.h>
 #include <poll.h>
 #include <sys/socket.h>
-#include <thread> // FIXED: Added missing include for sleep_for
+#include <thread>
 #include <unistd.h>
 
 namespace l2net
 {
-
-    // ... [The rest of the file content remains identical, omitting for brevity since only the include changed] ...
-    // Just ensure you keep the rest of the implementation as it was in your previous upload.
-    // For safety, I will output the whole file content below to avoid confusion.
 
     // ============================================================================
     // raw_socket implementation
@@ -447,3 +447,5 @@ namespace l2net
     }
 
 } // namespace l2net
+
+#pragma GCC diagnostic pop
