@@ -95,5 +95,3 @@ sudo ./build/release/hybrid_chat eth0 client <SERVER_IP>
 | VLAN Tag | `0x8100` |
 
 Default VLAN: ID `10`, Priority `7`
-
-```
