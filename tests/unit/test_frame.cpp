@@ -1,5 +1,4 @@
-// tests/unit/test_frame.cpp - frame construction/parsing tests
-// making sure we can actually build valid ethernet frames
+// tests/unit/test_frame.cpp
 
 #include "l2net/common.hpp"
 #include "l2net/frame.hpp"
@@ -7,18 +6,11 @@
 
 TEST_SUITE("frame_builder")
 {
-    // ... [Previous tests same] ...
     TEST_CASE("build minimal frame")
     {
         l2net::mac_address const dest{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         l2net::mac_address const src{0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
-
-        auto result = l2net::frame_builder{}
-                          .set_dest(dest)
-                          .set_src(src)
-                          .set_ether_type(0x0800)
-                          .build();
-
+        auto result = l2net::frame_builder{}.set_dest(dest).set_src(src).set_ether_type(0x0800).build();
         REQUIRE(result.has_value());
         CHECK(result->size() == l2net::constants::eth_header_size);
     }
@@ -28,14 +20,7 @@ TEST_SUITE("frame_builder")
         l2net::mac_address const dest{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         l2net::mac_address const src{0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
         std::string_view const payload = "test payload data";
-
-        auto result = l2net::frame_builder{}
-                          .set_dest(dest)
-                          .set_src(src)
-                          .set_ether_type(0x88B5)
-                          .set_payload(payload)
-                          .build();
-
+        auto result = l2net::frame_builder{}.set_dest(dest).set_src(src).set_ether_type(0x88B5).set_payload(payload).build();
         REQUIRE(result.has_value());
         CHECK(result->size() == l2net::constants::eth_header_size + payload.size());
     }
@@ -44,60 +29,43 @@ TEST_SUITE("frame_builder")
     {
         l2net::mac_address const dest{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
         l2net::mac_address const src{0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-
         std::array<std::uint8_t, 64> buffer{};
-
-        auto builder = l2net::frame_builder{}
-                           .set_dest(dest)
-                           .set_src(src)
-                           .set_ether_type(0x0800);
-
+        auto builder = l2net::frame_builder{}.set_dest(dest).set_src(src).set_ether_type(0x0800);
         auto result = builder.build_into(buffer);
-
         REQUIRE(result.has_value());
         CHECK(*result == l2net::constants::eth_header_size);
+        CHECK(buffer[0] == 0xAA);
+        CHECK(buffer[5] == 0xFF);
+        CHECK(buffer[6] == 0x11);
+        CHECK(buffer[11] == 0x66);
+        CHECK(buffer[12] == 0x08);
+        CHECK(buffer[13] == 0x00);
     }
-
     TEST_CASE("build_into with insufficient buffer")
     {
         l2net::mac_address const dest{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         l2net::mac_address const src{0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
         std::array<std::uint8_t, 10> buffer{};
-
-        auto result = l2net::frame_builder{}
-                          .set_dest(dest)
-                          .set_src(src)
-                          .set_ether_type(0x0800)
-                          .build_into(buffer);
-
+        auto result = l2net::frame_builder{}.set_dest(dest).set_src(src).set_ether_type(0x0800).build_into(buffer);
         CHECK_FALSE(result.has_value());
         CHECK(result.error() == l2net::error_code::buffer_too_small);
     }
-
     TEST_CASE("required_size calculation")
     {
         auto builder = l2net::frame_builder{};
         CHECK(builder.required_size() == l2net::constants::eth_header_size);
-
-        // FIXED: Suppress nodiscard error by casting to void
         (void)builder.set_payload("hello");
         CHECK(builder.required_size() == l2net::constants::eth_header_size + 5);
     }
-
     TEST_CASE("reset clears state")
     {
-        auto builder = l2net::frame_builder{}
-                           .set_dest(l2net::mac_address::broadcast())
-                           .set_payload("test data");
-
+        auto builder = l2net::frame_builder{}.set_dest(l2net::mac_address::broadcast()).set_payload("test data");
         CHECK(builder.required_size() > l2net::constants::eth_header_size);
-
         builder.reset();
         CHECK(builder.required_size() == l2net::constants::eth_header_size);
     }
 }
-// ... [Frame parser and other tests remain same] ...
+
 TEST_SUITE("frame_parser")
 {
     TEST_CASE("parse valid untagged frame")
@@ -119,7 +87,6 @@ TEST_SUITE("frame_parser")
         frame[13] = 0x00;
         frame[14] = 'H';
         frame[15] = 'I';
-
         l2net::frame_parser parser{frame};
         CHECK(parser.is_valid());
         CHECK_FALSE(parser.has_vlan());
@@ -128,7 +95,6 @@ TEST_SUITE("frame_parser")
         CHECK(parser.payload_size() == 6);
         CHECK(parser.header_size() == l2net::constants::eth_header_size);
     }
-    // ... [Rest of tests are fine as they were] ...
     TEST_CASE("parse tagged frame")
     {
         std::vector<std::uint8_t> frame(22);
@@ -145,7 +111,6 @@ TEST_SUITE("frame_parser")
         frame[19] = 'E';
         frame[20] = 'S';
         frame[21] = 'T';
-
         l2net::frame_parser parser{frame};
         CHECK(parser.is_valid());
         CHECK(parser.has_vlan());
@@ -154,20 +119,17 @@ TEST_SUITE("frame_parser")
         CHECK(parser.ether_type() == 0x88B5);
         CHECK(parser.header_size() == l2net::constants::eth_vlan_header_size);
     }
-
     TEST_CASE("parse too small frame")
     {
         std::vector<std::uint8_t> const tiny(5);
         l2net::frame_parser parser{tiny};
         CHECK_FALSE(parser.is_valid());
     }
-
     TEST_CASE("parse empty frame")
     {
         l2net::frame_parser parser{std::span<std::uint8_t const>{}};
         CHECK_FALSE(parser.is_valid());
     }
-
     TEST_CASE("extract mac addresses correctly")
     {
         std::vector<std::uint8_t> frame(14);
@@ -185,7 +147,6 @@ TEST_SUITE("frame_parser")
         frame[11] = 0x66;
         frame[12] = 0x08;
         frame[13] = 0x00;
-
         l2net::frame_parser parser{frame};
         REQUIRE(parser.is_valid());
         auto const dest = parser.dest_mac();
@@ -209,7 +170,6 @@ TEST_SUITE("build_simple_frame")
         CHECK(parser.dest_mac().is_broadcast());
         CHECK(parser.ether_type() == 0x88B5);
     }
-
     TEST_CASE("binary payload")
     {
         std::vector<std::uint8_t> const payload{0x00, 0x01, 0x02, 0x03};
@@ -232,8 +192,7 @@ TEST_SUITE("ethernet_header")
     TEST_CASE("direct memory access")
     {
         std::array<std::uint8_t, 14> raw{};
-        raw[0] = 0xFF;
-        raw[5] = 0xFF;
+        std::fill(raw.begin(), raw.begin() + 6, 0xFF);
         raw[12] = 0x08;
         raw[13] = 0x00;
         auto const *header = reinterpret_cast<l2net::ethernet_header const *>(raw.data());
