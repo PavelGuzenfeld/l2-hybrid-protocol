@@ -7,7 +7,7 @@
 #
 # Output will be in build/musl-alpine/bin/
 
-FROM alpine:3.19 AS builder
+FROM alpine:3.22 AS builder
 
 # install build dependencies
 RUN apk add --no-cache \
@@ -16,8 +16,9 @@ RUN apk add --no-cache \
     ninja \
     git \
     linux-headers \
-    libssh2-dev \
-    libssh2-static
+    libssh-dev \
+    libssh-static
+
 
 
 WORKDIR /src
