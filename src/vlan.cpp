@@ -11,9 +11,9 @@ namespace l2net
         if (!tci_.is_valid())
         {
             if (tci_.vlan_id > constants::max_vlan_id)
-                return tl::unexpected{error_code::invalid_vlan_id};
+                return std::unexpected{error_code::invalid_vlan_id};
             if (tci_.priority > constants::max_priority)
-                return tl::unexpected{error_code::invalid_priority};
+                return std::unexpected{error_code::invalid_priority};
         }
         return {};
     }
@@ -22,11 +22,11 @@ namespace l2net
     {
         auto const validation = validate();
         if (!validation.has_value())
-            return tl::unexpected{validation.error()};
+            return std::unexpected{validation.error()};
         std::vector<std::uint8_t> frame(required_size());
         auto const written = build_into(frame);
         if (!written.has_value())
-            return tl::unexpected{written.error()};
+            return std::unexpected{written.error()};
         return frame;
     }
 
@@ -34,11 +34,11 @@ namespace l2net
     {
         auto const validation = validate();
         if (!validation.has_value())
-            return tl::unexpected{validation.error()};
+            return std::unexpected{validation.error()};
 
         auto const total_size = required_size();
         if (buffer.size() < total_size)
-            return tl::unexpected{error_code::buffer_too_small};
+            return std::unexpected{error_code::buffer_too_small};
 
         std::copy_n(dest_mac_.data(), 6, buffer.data());
         std::copy_n(src_mac_.data(), 6, buffer.data() + 6);
@@ -96,7 +96,7 @@ namespace l2net
         if (!is_vlan_tagged(frame))
             return std::vector<std::uint8_t>{frame.begin(), frame.end()};
         if (frame.size() < constants::eth_vlan_header_size)
-            return tl::unexpected{error_code::invalid_frame_size};
+            return std::unexpected{error_code::invalid_frame_size};
 
         std::vector<std::uint8_t> result;
         result.reserve(frame.size() - constants::vlan_header_size);

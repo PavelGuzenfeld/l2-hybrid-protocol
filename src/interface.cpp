@@ -64,14 +64,14 @@ namespace l2net
         // separators must be consistent - no mixing colons and dashes
         if (str.size() != 17)
         {
-            return tl::unexpected{error_code::invalid_mac_address};
+            return std::unexpected{error_code::invalid_mac_address};
         }
 
         // determine separator from first occurrence (position 2)
         char const separator = str[2];
         if (separator != ':' && separator != '-')
         {
-            return tl::unexpected{error_code::invalid_mac_address};
+            return std::unexpected{error_code::invalid_mac_address};
         }
 
         storage_type bytes{};
@@ -84,7 +84,7 @@ namespace l2net
                 // separator position - must match the first separator
                 if (str[i] != separator)
                 {
-                    return tl::unexpected{error_code::invalid_mac_address};
+                    return std::unexpected{error_code::invalid_mac_address};
                 }
                 continue;
             }
@@ -106,7 +106,7 @@ namespace l2net
 
             if (high < 0 || low < 0)
             {
-                return tl::unexpected{error_code::invalid_mac_address};
+                return std::unexpected{error_code::invalid_mac_address};
             }
 
             bytes[byte_idx++] = static_cast<std::uint8_t>((high << 4) | low);
@@ -115,7 +115,7 @@ namespace l2net
 
         if (byte_idx != 6)
         {
-            return tl::unexpected{error_code::invalid_mac_address};
+            return std::unexpected{error_code::invalid_mac_address};
         }
 
         return mac_address{bytes};
@@ -135,13 +135,13 @@ namespace l2net
     {
         if (interface_name.empty() || interface_name.size() >= IFNAMSIZ)
         {
-            return tl::unexpected{error_code::interface_not_found};
+            return std::unexpected{error_code::interface_not_found};
         }
 
         ioctl_socket sock;
         if (!sock.is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct ifreq ifr{};
@@ -156,14 +156,14 @@ namespace l2net
         // get index
         if (::ioctl(sock.fd(), SIOCGIFINDEX, &ifr) < 0)
         {
-            return tl::unexpected{error_code::interface_not_found};
+            return std::unexpected{error_code::interface_not_found};
         }
         info.index_ = ifr.ifr_ifindex;
 
         // get mac address
         if (::ioctl(sock.fd(), SIOCGIFHWADDR, &ifr) < 0)
         {
-            return tl::unexpected{error_code::interface_query_failed};
+            return std::unexpected{error_code::interface_query_failed};
         }
         std::copy_n(reinterpret_cast<std::uint8_t const *>(ifr.ifr_hwaddr.sa_data),
                     mac_address::size,
@@ -190,7 +190,7 @@ namespace l2net
         ifaddrs_guard addrs;
         if (!addrs.get())
         {
-            return tl::unexpected{error_code::interface_query_failed};
+            return std::unexpected{error_code::interface_query_failed};
         }
 
         std::vector<std::string> seen_names;
@@ -246,7 +246,7 @@ namespace l2net
         auto all = interface_info::list_all();
         if (!all.has_value())
         {
-            return tl::unexpected{all.error()};
+            return std::unexpected{all.error()};
         }
 
         auto it = std::find_if(all->begin(), all->end(),
@@ -258,7 +258,7 @@ namespace l2net
             return *it;
         }
 
-        return tl::unexpected{error_code::interface_not_found};
+        return std::unexpected{error_code::interface_not_found};
     }
 
 } // namespace l2net

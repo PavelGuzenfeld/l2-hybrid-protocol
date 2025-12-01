@@ -14,13 +14,13 @@ namespace l2net
         auto const total_size = required_size();
         if (total_size < constants::eth_header_size)
         {
-            return tl::unexpected{error_code::invalid_frame_size};
+             return std::unexpected{error_code::invalid_frame_size};
         }
         std::vector<std::uint8_t> frame(total_size);
         auto const written = build_into(frame);
         if (!written.has_value())
         {
-            return tl::unexpected{written.error()};
+             return std::unexpected{written.error()};
         }
         return frame;
     }
@@ -30,7 +30,7 @@ namespace l2net
         auto const total_size = required_size();
         if (buffer.size() < total_size)
         {
-            return tl::unexpected{error_code::buffer_too_small};
+             return std::unexpected{error_code::buffer_too_small};
         }
 
         std::copy_n(dest_mac_.data(), 6, buffer.data());

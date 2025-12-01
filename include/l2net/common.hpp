@@ -1,19 +1,13 @@
 #pragma once
 
-// common.hpp - foundational types for people who appreciate not crashing
-// if you're reading this, congratulations on having standards
-
-#include <fmt/format.h>
-#include <tl/expected.hpp>
-
-// Suppress warnings from external library fmt
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-compare"
 #include <fmt/ranges.h>
 #pragma GCC diagnostic pop
-
 #include <array>
 #include <cstdint>
+#include <expected>
+#include <fmt/format.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -92,9 +86,9 @@ namespace l2net
     };
 
     template <typename T>
-    using result = tl::expected<T, error_code>;
+    using result = std::expected<T, error_code>;
 
-    using void_result = tl::expected<void, error_code>;
+    using void_result = std::expected<void, error_code>;
 
     class mac_address
     {
