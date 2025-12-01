@@ -11,11 +11,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# options - tests OFF by default, enable explicitly with -DL2NET_BUILD_TESTS=ON
-option(L2NET_BUILD_TESTS "Build the test suite (requires root to run)" OFF)
-option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" OFF)
+option(L2NET_BUILD_TESTS "Build the test suite (requires root to run)" ON)
+option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" ON)
 option(L2NET_BUILD_APPS "Build example applications" ON)
-option(L2NET_BUILD_REMOTE_TESTS "Build remote network tests (requires ssh, sshpass)" OFF)
+option(L2NET_BUILD_REMOTE_TESTS "Build remote network tests (requires ssh, sshpass)" ON)
 
 include(FetchContent)
 
@@ -229,6 +228,9 @@ if(L2NET_BUILD_BENCHMARKS)
             l2net_bench_sanitizers
     )
 endif()
+
+add_subdirectory(apps)
+
 
 # =============================================================================
 # installation - for the three people who will actually use this
