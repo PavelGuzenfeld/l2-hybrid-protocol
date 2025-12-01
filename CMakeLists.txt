@@ -29,7 +29,6 @@ FetchContent_Declare(
     GIT_TAG 10.2.1
 )
 
-
 if(L2NET_BUILD_TESTS OR L2NET_BUILD_REMOTE_TESTS)
     FetchContent_Declare(
         doctest
@@ -41,12 +40,11 @@ endif()
 
 if(L2NET_BUILD_BENCHMARKS)
     FetchContent_Declare(
-        benchmark
-        GIT_REPOSITORY https://github.com/google/benchmark.git
-        GIT_TAG v1.8.3
+        nanobench
+        GIT_REPOSITORY https://github.com/martinus/nanobench.git
+        GIT_TAG v4.3.11
     )
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(benchmark)
+    FetchContent_MakeAvailable(nanobench)
 endif()
 
 FetchContent_MakeAvailable(fmt)
@@ -189,7 +187,7 @@ if(L2NET_BUILD_BENCHMARKS)
     target_link_libraries(l2net_benchmarks
         PRIVATE
             l2net::l2net
-            benchmark::benchmark
+            nanobench
             l2net_warnings
             l2net_bench_sanitizers
     )
