@@ -21,7 +21,6 @@ option(L2NET_BUILD_APPS "Build example applications" ON)
 option(L2NET_BUILD_REMOTE_TESTS "Build remote network tests (requires ssh, sshpass)" ON)
 option(L2NET_ENABLE_SANITIZERS "Enable ASan/UBSan for tests" ON)
 
-
 include(FetchContent)
 
 FetchContent_Declare(
@@ -30,11 +29,6 @@ FetchContent_Declare(
     GIT_TAG 10.2.1
 )
 
-FetchContent_Declare(
-    expected
-    GIT_REPOSITORY https://github.com/TartanLlama/expected.git
-    GIT_TAG v1.1.0
-)
 
 if(L2NET_BUILD_TESTS OR L2NET_BUILD_REMOTE_TESTS)
     FetchContent_Declare(
@@ -55,7 +49,7 @@ if(L2NET_BUILD_BENCHMARKS)
     FetchContent_MakeAvailable(benchmark)
 endif()
 
-FetchContent_MakeAvailable(fmt expected)
+FetchContent_MakeAvailable(fmt)
 
 add_library(l2net_warnings INTERFACE)
 target_compile_options(l2net_warnings INTERFACE
@@ -69,7 +63,7 @@ target_compile_options(l2net_warnings INTERFACE
 )
 
 # =============================================================================
-# sanitizers for tests - controlled by L2NET_ENABLE_SANITIZERS
+# sanitizers
 # =============================================================================
 add_library(l2net_test_sanitizers INTERFACE)
 if(L2NET_ENABLE_SANITIZERS)
@@ -87,9 +81,6 @@ if(L2NET_ENABLE_SANITIZERS)
     )
 endif()
 
-# =============================================================================
-# sanitizers for benchmarks - only in Debug and only if enabled
-# =============================================================================
 add_library(l2net_bench_sanitizers INTERFACE)
 if(L2NET_ENABLE_SANITIZERS)
     target_compile_options(l2net_bench_sanitizers INTERFACE
@@ -110,7 +101,7 @@ if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
 endif()
 
 # =============================================================================
-# main library - the actual useful code
+# main library
 # =============================================================================
 add_library(l2net
     src/interface.cpp
@@ -130,7 +121,6 @@ target_include_directories(l2net
 target_link_libraries(l2net
     PUBLIC
         fmt::fmt
-        tl::expected
     PRIVATE
         l2net_warnings
 )
@@ -138,7 +128,7 @@ target_link_libraries(l2net
 add_library(l2net::l2net ALIAS l2net)
 
 # =============================================================================
-# applications - stuff users actually run
+# applications
 # =============================================================================
 if(L2NET_BUILD_APPS)
     add_executable(hybrid_chat apps/hybrid_chat_app.cpp)
@@ -154,7 +144,7 @@ endif()
 if(L2NET_BUILD_TESTS)
     enable_testing()
 
-    # unit tests - no root required
+    # unit tests
     add_executable(l2net_unit_tests
         tests/unit/main.cpp
         tests/unit/test_interface.cpp
@@ -188,7 +178,7 @@ if(L2NET_BUILD_TESTS)
 endif()
 
 # =============================================================================
-# benchmarks - for when you want to cry about performance
+# benchmarks
 # =============================================================================
 if(L2NET_BUILD_BENCHMARKS)
     add_executable(l2net_benchmarks
@@ -207,7 +197,6 @@ endif()
 
 add_subdirectory(apps)
 
-
 # =============================================================================
 # installation
 # =============================================================================
@@ -220,7 +209,7 @@ install(TARGETS l2net
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # =============================================================================
-# print configuration summary
+# summary
 # =============================================================================
 message(STATUS "")
 message(STATUS "============================================================")
