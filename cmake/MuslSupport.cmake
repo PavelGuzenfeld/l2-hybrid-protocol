@@ -1,17 +1,11 @@
 # cmake/MuslSupport.cmake
 # Static binary support - works with both musl and glibc
-#
-# Two modes:
-#   L2NET_USE_MUSL=ON   - Full musl build (requires Alpine or musl toolchain)
-#   L2NET_STATIC=ON     - Static glibc build (works on most Linux distros)
 
-# guard against double inclusion
 if(DEFINED _L2NET_MUSL_SUPPORT_INCLUDED)
     return()
 endif()
 set(_L2NET_MUSL_SUPPORT_INCLUDED TRUE)
 
-# define options if not already defined
 if(NOT DEFINED L2NET_USE_MUSL)
     option(L2NET_USE_MUSL "Build with musl libc (requires musl toolchain)" OFF)
 endif()
@@ -26,8 +20,6 @@ endif()
 if(L2NET_USE_MUSL OR L2NET_STATIC)
     set(FMT_TEST OFF CACHE BOOL "" FORCE)
     set(FMT_DOC OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
     set(DOCTEST_WITH_TESTS OFF CACHE BOOL "" FORCE)
 endif()
 
@@ -61,7 +53,6 @@ if(L2NET_USE_MUSL)
 endif()
 
 if(L2NET_USE_MUSL AND MUSL_NATIVE)
-    set(L2NET_BUILD_BENCHMARKS OFF CACHE BOOL "Benchmarks disabled for musl" FORCE)
     set(L2NET_BUILD_TESTS OFF CACHE BOOL "Tests disabled for musl" FORCE)
 
     add_library(l2net_static_build INTERFACE)
@@ -83,7 +74,6 @@ if(L2NET_STATIC AND NOT L2NET_USE_MUSL)
     message(STATUS "STATIC GLIBC BUILD ENABLED")
     message(STATUS "============================================================")
     
-    set(L2NET_BUILD_BENCHMARKS OFF CACHE BOOL "Benchmarks disabled for static" FORCE)
     set(L2NET_BUILD_TESTS OFF CACHE BOOL "Tests disabled for static" FORCE)
 
     add_library(l2net_static_build INTERFACE)
