@@ -6,6 +6,9 @@ project(l2net
     LANGUAGES CXX
 )
 
+option(L2NET_USE_MUSL "Build with musl libc for portable static binaries" OFF)
+include(cmake/MuslSupport.cmake)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -97,8 +100,9 @@ target_link_options(l2net_bench_sanitizers INTERFACE
     >
 )
 
-# FIXED: Statically link stdlib to fix CXXABI errors on older OS
-add_link_options(-static-libstdc++ -static-libgcc)
+if(NOT L2NET_USE_MUSL)
+    add_link_options(-static-libstdc++ -static-libgcc)
+endif()
 
 # =============================================================================
 # main library - the actual useful code
