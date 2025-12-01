@@ -7,6 +7,7 @@ project(l2net
 )
 
 option(L2NET_USE_MUSL "Build with musl libc for portable static binaries" OFF)
+option(L2NET_STATIC "Build fully static binaries with glibc" OFF)
 include(cmake/MuslSupport.cmake)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -18,6 +19,8 @@ option(L2NET_BUILD_TESTS "Build the test suite (requires root to run)" ON)
 option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" ON)
 option(L2NET_BUILD_APPS "Build example applications" ON)
 option(L2NET_BUILD_REMOTE_TESTS "Build remote network tests (requires ssh, sshpass)" ON)
+option(L2NET_ENABLE_SANITIZERS "Enable ASan/UBSan for tests" ON)
+
 
 include(FetchContent)
 
@@ -66,41 +69,43 @@ target_compile_options(l2net_warnings INTERFACE
 )
 
 # =============================================================================
-# sanitizers for tests - ALWAYS ON regardless of build type
-# because finding bugs at runtime is amateur hour, but we do it anyway
+# sanitizers for tests - controlled by L2NET_ENABLE_SANITIZERS
 # =============================================================================
 add_library(l2net_test_sanitizers INTERFACE)
-target_compile_options(l2net_test_sanitizers INTERFACE
-    $<$<CXX_COMPILER_ID:GNU,Clang>:
-        -fsanitize=address,undefined
-        -fno-omit-frame-pointer
-        -fno-optimize-sibling-calls
-    >
-)
-target_link_options(l2net_test_sanitizers INTERFACE
-    $<$<CXX_COMPILER_ID:GNU,Clang>:
-        -fsanitize=address,undefined
-    >
-)
+if(L2NET_ENABLE_SANITIZERS)
+    target_compile_options(l2net_test_sanitizers INTERFACE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:
+            -fsanitize=address,undefined
+            -fno-omit-frame-pointer
+            -fno-optimize-sibling-calls
+        >
+    )
+    target_link_options(l2net_test_sanitizers INTERFACE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:
+            -fsanitize=address,undefined
+        >
+    )
+endif()
 
 # =============================================================================
-# sanitizers for benchmarks - only in Debug because perf matters in Release
-# don't want your benchmark numbers corrupted by sanitizer overhead
+# sanitizers for benchmarks - only in Debug and only if enabled
 # =============================================================================
 add_library(l2net_bench_sanitizers INTERFACE)
-target_compile_options(l2net_bench_sanitizers INTERFACE
-    $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
-        -fsanitize=address,undefined
-        -fno-omit-frame-pointer
-    >
-)
-target_link_options(l2net_bench_sanitizers INTERFACE
-    $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
-        -fsanitize=address,undefined
-    >
-)
+if(L2NET_ENABLE_SANITIZERS)
+    target_compile_options(l2net_bench_sanitizers INTERFACE
+        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
+            -fsanitize=address,undefined
+            -fno-omit-frame-pointer
+        >
+    )
+    target_link_options(l2net_bench_sanitizers INTERFACE
+        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
+            -fsanitize=address,undefined
+        >
+    )
+endif()
 
-if(NOT L2NET_USE_MUSL)
+if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
 
@@ -143,19 +148,13 @@ if(L2NET_BUILD_APPS)
     target_link_libraries(ipc_l2 PRIVATE l2net::l2net l2net_warnings)
 endif()
 
-# # remote node is needed for both apps and remote tests
-# if(L2NET_BUILD_APPS OR L2NET_BUILD_REMOTE_TESTS)
-#     add_executable(l2net_remote_node apps/remote_node.cpp)
-#     target_link_libraries(l2net_remote_node PRIVATE l2net::l2net l2net_warnings)
-# endif()
-
 # =============================================================================
-# unit and integration tests - with sanitizers ALWAYS enabled
+# unit and integration tests
 # =============================================================================
 if(L2NET_BUILD_TESTS)
     enable_testing()
 
-    # unit tests - no root required, sanitizers ON
+    # unit tests - no root required
     add_executable(l2net_unit_tests
         tests/unit/main.cpp
         tests/unit/test_interface.cpp
@@ -172,7 +171,7 @@ if(L2NET_BUILD_TESTS)
     )
     add_test(NAME unit_tests COMMAND l2net_unit_tests)
 
-    # integration tests - requires root, sanitizers ON
+    # integration tests - requires root
     add_executable(l2net_integration_tests
         tests/integration/main.cpp
         tests/integration/test_localhost.cpp
@@ -188,35 +187,8 @@ if(L2NET_BUILD_TESTS)
     add_test(NAME integration_tests COMMAND l2net_integration_tests)
 endif()
 
-# # =============================================================================
-# # remote network tests - requires ssh access to remote machine
-# # sanitizers ON for the test runner, remote node runs without sanitizers
-# # =============================================================================
-# if(L2NET_BUILD_REMOTE_TESTS)
-#     enable_testing()
-
-#     add_executable(l2net_remote_tests
-#         tests/remote/main.cpp
-#         tests/remote/test_remote_latency.cpp
-#         tests/remote/test_remote_throughput.cpp
-#     )
-#     target_link_libraries(l2net_remote_tests
-#         PRIVATE
-#             l2net::l2net
-#             doctest::doctest
-#             l2net_warnings
-#             l2net_test_sanitizers
-#     )
-#     # pass binary path to test so it knows where to find the node binary
-#     target_compile_definitions(l2net_remote_tests PRIVATE
-#         L2NET_REMOTE_NODE_PATH="$<TARGET_FILE:l2net_remote_node>"
-#     )
-#     add_test(NAME remote_tests COMMAND l2net_remote_tests)
-# endif()
-
 # =============================================================================
 # benchmarks - for when you want to cry about performance
-# NO sanitizers in Release, Debug-only sanitizers for correctness checking
 # =============================================================================
 if(L2NET_BUILD_BENCHMARKS)
     add_executable(l2net_benchmarks
@@ -237,7 +209,7 @@ add_subdirectory(apps)
 
 
 # =============================================================================
-# installation - for the three people who will actually use this
+# installation
 # =============================================================================
 include(GNUInstallDirs)
 install(TARGETS l2net
@@ -248,7 +220,7 @@ install(TARGETS l2net
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # =============================================================================
-# print configuration summary so you know what you're getting into
+# print configuration summary
 # =============================================================================
 message(STATUS "")
 message(STATUS "============================================================")
@@ -257,10 +229,17 @@ message(STATUS "============================================================")
 message(STATUS "  Build type:           ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Tests:                ${L2NET_BUILD_TESTS}")
 message(STATUS "  Remote tests:         ${L2NET_BUILD_REMOTE_TESTS}")
+message(STATUS "  Musl build:           ${L2NET_USE_MUSL}")
+message(STATUS "  Static build:         ${L2NET_STATIC}")
 message(STATUS "  Benchmarks:           ${L2NET_BUILD_BENCHMARKS}")
 message(STATUS "  Apps:                 ${L2NET_BUILD_APPS}")
 message(STATUS "------------------------------------------------------------")
-message(STATUS "  Test sanitizers:      ALWAYS ON (ASan + UBSan)")
-message(STATUS "  Bench sanitizers:     Debug only")
+if(L2NET_ENABLE_SANITIZERS)
+    message(STATUS "  Test sanitizers:      ON (ASan + UBSan)")
+    message(STATUS "  Bench sanitizers:     Debug only")
+else()
+    message(STATUS "  Test sanitizers:      OFF")
+    message(STATUS "  Bench sanitizers:     OFF")
+endif()
 message(STATUS "============================================================")
 message(STATUS "")
