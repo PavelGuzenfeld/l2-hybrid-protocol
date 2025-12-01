@@ -736,6 +736,7 @@ namespace
 
     auto benchmark_orchestrator::kill_remote_processes() -> void
     {
+        // intentionally ignoring result - cleanup is best-effort
         (void)ssh_session_->execute("sudo pkill -9 -f l2net_remote_node 2>/dev/null || true");
         std::this_thread::sleep_for(std::chrono::milliseconds{100});
     }
@@ -744,6 +745,7 @@ namespace
     {
         print_status("cleaning up remote...");
         kill_remote_processes();
+        // intentionally ignoring results - cleanup is best-effort
         (void)ssh_session_->remove_file(config_.remote_binary_path);
         (void)ssh_session_->remove_file("/tmp/l2net_server.log");
     }
