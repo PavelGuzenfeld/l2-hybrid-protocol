@@ -18,7 +18,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(L2NET_BUILD_TESTS "Build the test suite (requires root to run)" ON)
 option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" ON)
 option(L2NET_BUILD_APPS "Build example applications" ON)
-option(L2NET_BUILD_REMOTE_TESTS "Build remote network tests (requires ssh, sshpass)" ON)
 option(L2NET_ENABLE_SANITIZERS "Enable ASan/UBSan for tests" ON)
 
 include(FetchContent)
@@ -29,15 +28,19 @@ FetchContent_Declare(
     GIT_TAG 10.2.1
 )
 
-if(L2NET_BUILD_TESTS OR L2NET_BUILD_REMOTE_TESTS)
+# 1. Fetch doctest (Testing)
+if(L2NET_BUILD_TESTS)
     FetchContent_Declare(
         doctest
         GIT_REPOSITORY https://github.com/doctest/doctest.git
         GIT_TAG v2.4.11
     )
+    # Disable doctest's own tests to save build time
+    set(DOCTEST_WITH_TESTS OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(doctest)
 endif()
 
+# 2. Fetch nanobench (Benchmarking)
 if(L2NET_BUILD_BENCHMARKS)
     FetchContent_Declare(
         nanobench
@@ -61,7 +64,7 @@ target_compile_options(l2net_warnings INTERFACE
 )
 
 # =============================================================================
-# sanitizers
+# Sanitizers
 # =============================================================================
 add_library(l2net_test_sanitizers INTERFACE)
 if(L2NET_ENABLE_SANITIZERS)
@@ -79,27 +82,12 @@ if(L2NET_ENABLE_SANITIZERS)
     )
 endif()
 
-add_library(l2net_bench_sanitizers INTERFACE)
-if(L2NET_ENABLE_SANITIZERS)
-    target_compile_options(l2net_bench_sanitizers INTERFACE
-        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
-            -fsanitize=address,undefined
-            -fno-omit-frame-pointer
-        >
-    )
-    target_link_options(l2net_bench_sanitizers INTERFACE
-        $<$<AND:$<CXX_COMPILER_ID:GNU,Clang>,$<CONFIG:Debug>>:
-            -fsanitize=address,undefined
-        >
-    )
-endif()
-
 if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
 
 # =============================================================================
-# main library
+# Main Library
 # =============================================================================
 add_library(l2net
     src/interface.cpp
@@ -108,6 +96,7 @@ add_library(l2net
     src/vlan.cpp
     src/ipc_channel.cpp
     src/hybrid_chat.cpp
+    src/ssh_session.cpp
 )
 
 target_include_directories(l2net
@@ -126,7 +115,7 @@ target_link_libraries(l2net
 add_library(l2net::l2net ALIAS l2net)
 
 # =============================================================================
-# applications
+# Applications
 # =============================================================================
 if(L2NET_BUILD_APPS)
     add_executable(hybrid_chat apps/hybrid_chat_app.cpp)
@@ -137,12 +126,12 @@ if(L2NET_BUILD_APPS)
 endif()
 
 # =============================================================================
-# unit and integration tests
+# Tests (Doctest)
 # =============================================================================
 if(L2NET_BUILD_TESTS)
     enable_testing()
 
-    # unit tests
+    # Unit Tests
     add_executable(l2net_unit_tests
         tests/unit/main.cpp
         tests/unit/test_interface.cpp
@@ -150,7 +139,9 @@ if(L2NET_BUILD_TESTS)
         tests/unit/test_vlan.cpp
         tests/unit/test_edge_cases.cpp
     )
-    target_include_directories(l2net_unit_tests PRIVATE tests/common/)
+
+    target_include_directories(l2net_unit_tests PRIVATE tests/common)
+
     target_link_libraries(l2net_unit_tests
         PRIVATE
             l2net::l2net
@@ -160,12 +151,16 @@ if(L2NET_BUILD_TESTS)
     )
     add_test(NAME unit_tests COMMAND l2net_unit_tests)
 
-    # integration tests - requires root
+    # Integration Tests
     add_executable(l2net_integration_tests
         tests/integration/main.cpp
         tests/integration/test_localhost.cpp
         tests/integration/test_network.cpp
+        tests/integration/test_vlan.cpp
     )
+
+    target_include_directories(l2net_integration_tests PRIVATE tests/common)
+
     target_link_libraries(l2net_integration_tests
         PRIVATE
             l2net::l2net
@@ -177,7 +172,7 @@ if(L2NET_BUILD_TESTS)
 endif()
 
 # =============================================================================
-# benchmarks
+# Benchmarks (Nanobench)
 # =============================================================================
 if(L2NET_BUILD_BENCHMARKS)
     add_executable(l2net_benchmarks
@@ -190,14 +185,11 @@ if(L2NET_BUILD_BENCHMARKS)
             l2net::l2net
             nanobench
             l2net_warnings
-            l2net_bench_sanitizers
     )
 endif()
 
-add_subdirectory(apps)
-
 # =============================================================================
-# installation
+# Installation
 # =============================================================================
 include(GNUInstallDirs)
 install(TARGETS l2net
