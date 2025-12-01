@@ -1,0 +1,65 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "musl-base",
+            "hidden": true,
+            "description": "Base configuration for musl builds",
+            "cacheVariables": {
+                "L2NET_USE_MUSL": "ON",
+                "CMAKE_BUILD_TYPE": "Release",
+                "L2NET_BUILD_TESTS": "OFF",
+                "L2NET_BUILD_BENCHMARKS": "OFF"
+            }
+        },
+        {
+            "name": "musl-release",
+            "displayName": "Musl Release",
+            "description": "Release build with musl for portable static binaries",
+            "inherits": "musl-base",
+            "binaryDir": "${sourceDir}/build/musl-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "L2NET_BUILD_APPS": "ON"
+            }
+        },
+        {
+            "name": "musl-release-gcc",
+            "displayName": "Musl Release (GCC)",
+            "description": "Release build with musl-gcc",
+            "inherits": "musl-base",
+            "binaryDir": "${sourceDir}/build/musl-release-gcc",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "musl-gcc",
+                "CMAKE_CXX_COMPILER": "musl-gcc",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "musl-release-clang",
+            "displayName": "Musl Release (Clang)",
+            "description": "Release build with musl-clang",
+            "inherits": "musl-base",
+            "binaryDir": "${sourceDir}/build/musl-release-clang",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "musl-clang",
+                "CMAKE_CXX_COMPILER": "musl-clang",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "musl-release",
+            "configurePreset": "musl-release"
+        },
+        {
+            "name": "musl-release-gcc",
+            "configurePreset": "musl-release-gcc"
+        },
+        {
+            "name": "musl-release-clang",
+            "configurePreset": "musl-release-clang"
+        }
+    ]
+}

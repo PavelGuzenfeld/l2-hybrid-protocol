@@ -1,0 +1,51 @@
+# Dockerfile.musl
+# Build fully static musl binaries using Alpine Linux
+#
+# Usage:
+#   docker build -f Dockerfile.musl -t l2net-musl-builder .
+#   docker run --rm -v $(pwd):/src l2net-musl-builder
+#
+# Output will be in build/musl-alpine/bin/
+
+FROM alpine:3.19 AS builder
+
+# install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    cmake \
+    ninja \
+    git \
+    linux-headers \
+    libssh-dev \
+    libssh-static
+
+WORKDIR /src
+
+# copy source (or mount as volume)
+COPY . .
+
+# configure and build
+RUN cmake -B build/musl-alpine \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DL2NET_USE_MUSL=ON \
+    -DL2NET_BUILD_TESTS=OFF \
+    -DL2NET_BUILD_BENCHMARKS=OFF \
+    -DL2NET_BUILD_APPS=ON \
+    -DCMAKE_EXE_LINKER_FLAGS="-static"
+
+RUN cmake --build build/musl-alpine
+
+# verify static linking
+RUN file build/musl-alpine/bin/* && \
+    echo "---" && \
+    ls -lh build/musl-alpine/bin/
+
+# =============================================================================
+# Minimal runtime image (optional - for deployment)
+# =============================================================================
+FROM scratch AS runtime
+
+COPY --from=builder /src/build/musl-alpine/bin/l2net_remote_node /l2net_remote_node
+
+ENTRYPOINT ["/l2net_remote_node"]
