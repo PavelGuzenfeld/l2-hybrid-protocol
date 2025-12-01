@@ -6,10 +6,9 @@
 #include "l2net/raw_socket.hpp"
 #include "l2net/vlan.hpp"
 
+#include <arpa/inet.h>
 #include <fmt/format.h>
 #include <nanobench.h>
-
-#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <optional>
 #include <sys/socket.h>
@@ -24,10 +23,14 @@ namespace bench
         [[nodiscard]] auto can_run_network_benchmarks() -> bool
         {
             if (::geteuid() != 0)
+            {
                 return false;
+            }
             auto all = l2net::interface_info::list_all();
             if (!all.has_value())
+            {
                 return false;
+            }
             for (auto const &iface : *all)
             {
                 if (!iface.is_loopback() && iface.is_up() && !iface.mac().is_null())
@@ -42,7 +45,9 @@ namespace bench
         {
             auto all = l2net::interface_info::list_all();
             if (!all.has_value())
+            {
                 return std::nullopt;
+            }
             for (auto const &iface : *all)
             {
                 if (!iface.is_loopback() && iface.is_up() && !iface.mac().is_null())
@@ -69,7 +74,9 @@ namespace bench
             ~udp_broadcast_socket()
             {
                 if (fd_ >= 0)
+                {
                     ::close(fd_);
+                }
             }
 
             [[nodiscard]] auto send_broadcast(void const *data, std::size_t len, std::uint16_t port) -> ssize_t
@@ -80,7 +87,10 @@ namespace bench
                 addr.sin_port = htons(port);
                 return ::sendto(fd_, data, len, 0, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
             }
-            [[nodiscard]] auto is_valid() const -> bool { return fd_ >= 0; }
+            [[nodiscard]] auto is_valid() const -> bool
+            {
+                return fd_ >= 0;
+            }
         };
 
     } // anonymous namespace
@@ -97,30 +107,38 @@ namespace bench
 
         auto iface = get_network_interface();
         if (!iface.has_value())
+        {
             return;
+        }
 
         auto l2_sock = l2net::raw_socket::create_bound(*iface);
         if (!l2_sock.has_value())
+        {
             return;
+        }
 
         // L2 Send Benchmarks
         {
             std::vector<std::uint8_t> payload(50, 0x42);
-            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(), l2net::constants::eth_p_custom, payload);
+            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(),
+                                                   l2net::constants::eth_p_custom, payload);
             if (frame.has_value())
             {
-                Bench().batch(frame->size()).run("L2_Network_Send_Small", [&]
-                                                 { (void)l2_sock->send_raw(*frame, *iface); });
+                Bench()
+                    .batch(frame->size())
+                    .run("L2_Network_Send_Small", [&] { (void)l2_sock->send_raw(*frame, *iface); });
             }
         }
 
         {
             std::vector<std::uint8_t> payload(1400, 0x42);
-            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(), l2net::constants::eth_p_custom, payload);
+            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(),
+                                                   l2net::constants::eth_p_custom, payload);
             if (frame.has_value())
             {
-                Bench().batch(frame->size()).run("L2_Network_Send_Large", [&]
-                                                 { (void)l2_sock->send_raw(*frame, *iface); });
+                Bench()
+                    .batch(frame->size())
+                    .run("L2_Network_Send_Large", [&] { (void)l2_sock->send_raw(*frame, *iface); });
             }
         }
 
@@ -130,52 +148,69 @@ namespace bench
             if (udp_sock.is_valid())
             {
                 std::vector<std::uint8_t> payload(50, 0x42);
-                Bench().batch(payload.size()).run("UDP_Network_Broadcast_Small", [&]
-                                                  { (void)udp_sock.send_broadcast(payload.data(), payload.size(), 19997); });
+                Bench()
+                    .batch(payload.size())
+                    .run("UDP_Network_Broadcast_Small",
+                         [&] { (void)udp_sock.send_broadcast(payload.data(), payload.size(), 19997); });
 
                 payload.resize(1400);
-                Bench().batch(payload.size()).run("UDP_Network_Broadcast_Large", [&]
-                                                  { (void)udp_sock.send_broadcast(payload.data(), payload.size(), 19997); });
+                Bench()
+                    .batch(payload.size())
+                    .run("UDP_Network_Broadcast_Large",
+                         [&] { (void)udp_sock.send_broadcast(payload.data(), payload.size(), 19997); });
             }
         }
 
         // Socket Creation
         if (::geteuid() == 0)
         {
-            Bench().run("L2_Socket_Create", [&]
+            Bench().run("L2_Socket_Create",
+                        [&]
                         {
-            auto sock = l2net::raw_socket::create();
-            doNotOptimizeAway(sock); });
+                            auto sock = l2net::raw_socket::create();
+                            doNotOptimizeAway(sock);
+                        });
         }
 
-        Bench().run("UDP_Socket_Create", [&]
+        Bench().run("UDP_Socket_Create",
+                    [&]
                     {
-        int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
-        doNotOptimizeAway(fd);
-        if (fd >= 0) ::close(fd); });
+                        int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+                        doNotOptimizeAway(fd);
+                        if (fd >= 0)
+                        {
+                            ::close(fd);
+                        }
+                    });
 
         // Interface Queries
-        Bench().run("Interface_Query", [&]
+        Bench().run("Interface_Query",
+                    [&]
                     {
-        auto result = l2net::interface_info::query("lo");
-        doNotOptimizeAway(result); });
+                        auto result = l2net::interface_info::query("lo");
+                        doNotOptimizeAway(result);
+                    });
 
-        Bench().run("Interface_ListAll", [&]
+        Bench().run("Interface_ListAll",
+                    [&]
                     {
-        auto result = l2net::interface_info::list_all();
-        doNotOptimizeAway(result); });
+                        auto result = l2net::interface_info::list_all();
+                        doNotOptimizeAway(result);
+                    });
 
         // Payload Size Sweep
         std::vector<std::size_t> sizes = {32, 64, 128, 256, 512, 1024, 1400};
         for (auto size : sizes)
         {
             std::vector<std::uint8_t> payload(size, 0x42);
-            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(), l2net::constants::eth_p_custom, payload);
+            auto frame = l2net::build_simple_frame(l2net::mac_address::broadcast(), iface->mac(),
+                                                   l2net::constants::eth_p_custom, payload);
 
             if (frame.has_value())
             {
-                Bench().batch(frame->size()).run(fmt::format("L2_Payload_{}", size), [&]
-                                                 { (void)l2_sock->send_raw(*frame, *iface); });
+                Bench()
+                    .batch(frame->size())
+                    .run(fmt::format("L2_Payload_{}", size), [&] { (void)l2_sock->send_raw(*frame, *iface); });
             }
         }
     }

@@ -24,7 +24,7 @@ if(L2NET_USE_MUSL)
     find_program(MUSL_CLANG musl-clang)
 
     if(NOT MUSL_GCC AND NOT MUSL_CLANG)
-        message(FATAL_ERROR 
+        message(FATAL_ERROR
             "L2NET_USE_MUSL is ON but no musl compiler found!\n"
             "Install musl-tools:\n"
             "  Debian/Ubuntu: sudo apt install musl-tools musl-dev\n"
@@ -52,7 +52,7 @@ if(L2NET_USE_MUSL)
 
     # create a target for musl-specific settings
     add_library(l2net_musl INTERFACE)
-    
+
     # static linking for fully portable binaries
     target_compile_options(l2net_musl INTERFACE
         -static

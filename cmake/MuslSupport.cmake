@@ -31,7 +31,7 @@ if(L2NET_USE_MUSL)
     message(STATUS "============================================================")
     message(STATUS "MUSL BUILD ENABLED")
     message(STATUS "============================================================")
-    
+
     execute_process(
         COMMAND ldd --version
         OUTPUT_VARIABLE LDD_OUTPUT
@@ -39,9 +39,9 @@ if(L2NET_USE_MUSL)
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_STRIP_TRAILING_WHITESPACE
     )
-    
+
     string(FIND "${LDD_OUTPUT}" "musl" MUSL_IN_LDD)
-    
+
     if(MUSL_IN_LDD GREATER -1)
         message(STATUS "Detected musl-based system")
         set(MUSL_NATIVE TRUE)
@@ -73,7 +73,7 @@ if(L2NET_STATIC AND NOT L2NET_USE_MUSL)
     message(STATUS "============================================================")
     message(STATUS "STATIC GLIBC BUILD ENABLED")
     message(STATUS "============================================================")
-    
+
     set(L2NET_BUILD_TESTS OFF CACHE BOOL "Tests disabled for static" FORCE)
 
     add_library(l2net_static_build INTERFACE)

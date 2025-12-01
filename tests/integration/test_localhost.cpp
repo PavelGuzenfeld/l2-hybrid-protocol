@@ -6,18 +6,24 @@
 #include "l2net/interface.hpp"
 #include "l2net/ipc_channel.hpp"
 #include "l2net/raw_socket.hpp"
-#include <doctest/doctest.h>
 
 #include <atomic>
 #include <chrono>
+#include <doctest/doctest.h>
 #include <thread>
 #include <vector>
 
 namespace
 {
-    [[nodiscard]] auto has_root_privileges() noexcept -> bool { return ::geteuid() == 0; }
-    [[nodiscard]] auto loopback_available() noexcept -> bool { return l2net::get_loopback_interface().has_value(); }
-}
+    [[nodiscard]] auto has_root_privileges() noexcept -> bool
+    {
+        return ::geteuid() == 0;
+    }
+    [[nodiscard]] auto loopback_available() noexcept -> bool
+    {
+        return l2net::get_loopback_interface().has_value();
+    }
+} // namespace
 
 TEST_SUITE("localhost_integration" * doctest::skip(!has_root_privileges() || !loopback_available()))
 {
@@ -195,7 +201,8 @@ TEST_SUITE("localhost_integration" * doctest::skip(!has_root_privileges() || !lo
         auto receiver = l2net::raw_socket::create_bound(*lo, static_cast<l2net::raw_socket::protocol>(test_proto));
         REQUIRE(sender.has_value());
         REQUIRE(receiver.has_value());
-        auto frame = l2net::build_simple_frame(l2net::mac_address::null(), l2net::mac_address::null(), test_proto, "roundtrip test");
+        auto frame = l2net::build_simple_frame(l2net::mac_address::null(), l2net::mac_address::null(), test_proto,
+                                               "roundtrip test");
         REQUIRE(frame.has_value());
         auto send_result = sender->send_raw(*frame, *lo);
         REQUIRE(send_result.has_value());

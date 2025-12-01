@@ -8,9 +8,9 @@
 #include "l2net/ipc_channel.hpp"
 #include "l2net/vlan.hpp"
 #include "test_helpers.hpp"
-#include <doctest/doctest.h>
 
 #include <array>
+#include <doctest/doctest.h>
 #include <limits>
 #include <vector>
 
@@ -217,10 +217,8 @@ TEST_SUITE("frame_builder_edge_cases")
 
     TEST_CASE("build_into with zero size buffer")
     {
-        auto builder = frame_builder{}
-                           .set_dest(mac_address::broadcast())
-                           .set_src(mac_address::null())
-                           .set_ether_type(0x0800);
+        auto builder =
+            frame_builder{}.set_dest(mac_address::broadcast()).set_src(mac_address::null()).set_ether_type(0x0800);
 
         std::span<std::uint8_t> empty_buffer;
         auto result = builder.build_into(empty_buffer);
@@ -476,10 +474,8 @@ TEST_SUITE("byte_utils_edge_cases")
         }
 
         // spot check high values
-        CHECK(byte_utils::ntohs_constexpr(
-                  byte_utils::htons_constexpr(0xDEAD)) == 0xDEAD);
-        CHECK(byte_utils::ntohs_constexpr(
-                  byte_utils::htons_constexpr(0xBEEF)) == 0xBEEF);
+        CHECK(byte_utils::ntohs_constexpr(byte_utils::htons_constexpr(0xDEAD)) == 0xDEAD);
+        CHECK(byte_utils::ntohs_constexpr(byte_utils::htons_constexpr(0xBEEF)) == 0xBEEF);
     }
 }
 
@@ -554,19 +550,11 @@ TEST_SUITE("build_simple_frame_edge_cases")
     TEST_CASE("string payload with various sizes")
     {
         // empty string
-        auto empty = build_simple_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            0x0800,
-            std::string_view{});
+        auto empty = build_simple_frame(mac_address::broadcast(), mac_address::null(), 0x0800, std::string_view{});
         REQUIRE(empty.has_value());
 
         // single character
-        auto single = build_simple_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            0x0800,
-            "X");
+        auto single = build_simple_frame(mac_address::broadcast(), mac_address::null(), 0x0800, "X");
         REQUIRE(single.has_value());
         CHECK(single->size() == constants::eth_header_size + 1);
     }
@@ -580,11 +568,7 @@ TEST_SUITE("build_simple_frame_edge_cases")
             all_bytes[i] = static_cast<std::uint8_t>(i);
         }
 
-        auto frame = build_simple_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            0x0800,
-            all_bytes);
+        auto frame = build_simple_frame(mac_address::broadcast(), mac_address::null(), 0x0800, all_bytes);
         REQUIRE(frame.has_value());
 
         frame_parser parser{*frame};

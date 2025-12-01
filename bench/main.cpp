@@ -16,7 +16,7 @@ namespace bench
 {
     void run_localhost_benchmarks();
     void run_network_benchmarks();
-}
+} // namespace bench
 
 int main()
 {

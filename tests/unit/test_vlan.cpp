@@ -3,6 +3,7 @@
 #include "l2net/frame.hpp"
 #include "l2net/vlan.hpp"
 #include "test_helpers.hpp"
+
 #include <doctest/doctest.h>
 
 using namespace l2net;
@@ -21,10 +22,7 @@ TEST_SUITE("vlan_tci")
 
     TEST_CASE("encode/decode roundtrip")
     {
-        vlan_tci const original{
-            .priority = 7,
-            .dei = true,
-            .vlan_id = 100};
+        vlan_tci const original{.priority = 7, .dei = true, .vlan_id = 100};
 
         auto const encoded = original.encode();
         auto const decoded = vlan_tci::decode(encoded);
@@ -133,8 +131,7 @@ TEST_SUITE("vlan_frame_builder")
 
     TEST_CASE("validation fails for invalid vlan_id")
     {
-        auto builder = vlan_frame_builder{}
-                           .set_vlan_id(5000); // invalid
+        auto builder = vlan_frame_builder{}.set_vlan_id(5000); // invalid
 
         auto validation = builder.validate();
         CHECK_FALSE(validation.has_value());
@@ -143,8 +140,7 @@ TEST_SUITE("vlan_frame_builder")
 
     TEST_CASE("validation fails for invalid priority")
     {
-        auto builder = vlan_frame_builder{}
-                           .set_priority(10); // invalid
+        auto builder = vlan_frame_builder{}.set_priority(10); // invalid
 
         auto validation = builder.validate();
         CHECK_FALSE(validation.has_value());
@@ -169,10 +165,7 @@ TEST_SUITE("vlan_frame_builder")
 
     TEST_CASE("reset clears state")
     {
-        auto builder = vlan_frame_builder{}
-                           .set_vlan_id(100)
-                           .set_priority(7)
-                           .set_payload("lots of data here");
+        auto builder = vlan_frame_builder{}.set_vlan_id(100).set_priority(7).set_payload("lots of data here");
 
         auto const size_before = builder.required_size();
         builder.reset();
@@ -187,12 +180,7 @@ TEST_SUITE("vlan convenience functions")
     {
         vlan_tci const tci{.priority = 7, .dei = false, .vlan_id = 10};
 
-        auto result = build_vlan_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            tci,
-            0x88B5,
-            "test message");
+        auto result = build_vlan_frame(mac_address::broadcast(), mac_address::null(), tci, 0x88B5, "test message");
 
         REQUIRE(result.has_value());
         CHECK(result->size() == constants::eth_vlan_header_size + 12);
@@ -203,12 +191,7 @@ TEST_SUITE("vlan convenience functions")
         vlan_tci const tci{.priority = 3, .dei = false, .vlan_id = 50};
         std::vector<std::uint8_t> const payload{0x01, 0x02, 0x03};
 
-        auto result = build_vlan_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            tci,
-            0x0800,
-            payload);
+        auto result = build_vlan_frame(mac_address::broadcast(), mac_address::null(), tci, 0x0800, payload);
 
         REQUIRE(result.has_value());
     }
@@ -238,12 +221,7 @@ TEST_SUITE("vlan convenience functions")
     {
         // build a tagged frame
         vlan_tci const tci{.priority = 5, .dei = false, .vlan_id = 100};
-        auto tagged = build_vlan_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            tci,
-            0x0800,
-            "payload");
+        auto tagged = build_vlan_frame(mac_address::broadcast(), mac_address::null(), tci, 0x0800, "payload");
         REQUIRE(tagged.has_value());
 
         // strip the tag
@@ -263,11 +241,7 @@ TEST_SUITE("vlan convenience functions")
 
     TEST_CASE("strip_vlan_tag from untagged frame")
     {
-        auto untagged = build_simple_frame(
-            mac_address::broadcast(),
-            mac_address::null(),
-            0x0800,
-            "test");
+        auto untagged = build_simple_frame(mac_address::broadcast(), mac_address::null(), 0x0800, "test");
         REQUIRE(untagged.has_value());
 
         // should return copy unchanged
@@ -300,9 +274,7 @@ TEST_SUITE("vlan roundtrip")
         auto const parsed_payload = parser.payload();
         CHECK(parsed_payload.size() == payload.size());
 
-        std::string_view const parsed_str{
-            reinterpret_cast<char const *>(parsed_payload.data()),
-            parsed_payload.size()};
+        std::string_view const parsed_str{reinterpret_cast<char const *>(parsed_payload.data()), parsed_payload.size()};
         CHECK(parsed_str == payload);
     }
 }

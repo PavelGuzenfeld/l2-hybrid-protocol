@@ -151,30 +151,23 @@ namespace l2net::ssh
 
         // command execution
         [[nodiscard]] auto execute(std::string_view command) -> result<command_result>;
-        [[nodiscard]] auto execute(
-            std::string_view command,
-            std::chrono::seconds timeout) -> result<command_result>;
+        [[nodiscard]] auto execute(std::string_view command, std::chrono::seconds timeout) -> result<command_result>;
 
         // execute with real-time output streaming
-        [[nodiscard]] auto execute_streaming(
-            std::string_view command,
-            std::function<void(std::string_view, bool)> const &output_callback // (data, is_stderr)
-            ) -> result<int>;                                                  // returns exit code
+        [[nodiscard]] auto
+        execute_streaming(std::string_view command,
+                          std::function<void(std::string_view, bool)> const &output_callback // (data, is_stderr)
+                          ) -> result<int>;                                                  // returns exit code
 
         // file transfer
-        [[nodiscard]] auto upload_file(
-            std::filesystem::path const &local_path,
-            std::string_view remote_path,
-            int mode = 0755) -> result<void>;
+        [[nodiscard]] auto upload_file(std::filesystem::path const &local_path, std::string_view remote_path,
+                                       int mode = 0755) -> result<void>;
 
-        [[nodiscard]] auto download_file(
-            std::string_view remote_path,
-            std::filesystem::path const &local_path) -> result<void>;
+        [[nodiscard]] auto download_file(std::string_view remote_path, std::filesystem::path const &local_path)
+            -> result<void>;
 
-        [[nodiscard]] auto upload_data(
-            std::span<std::uint8_t const> data,
-            std::string_view remote_path,
-            int mode = 0755) -> result<void>;
+        [[nodiscard]] auto upload_data(std::span<std::uint8_t const> data, std::string_view remote_path,
+                                       int mode = 0755) -> result<void>;
 
         // convenience methods
         [[nodiscard]] auto file_exists(std::string_view remote_path) -> result<bool>;
@@ -186,7 +179,10 @@ namespace l2net::ssh
         [[nodiscard]] auto last_error_message() const -> std::string;
 
         // accessors
-        [[nodiscard]] auto config() const noexcept -> session_config const & { return config_; }
+        [[nodiscard]] auto config() const noexcept -> session_config const &
+        {
+            return config_;
+        }
 
     private:
         explicit session(ssh_session_struct *raw_session, session_config config);
@@ -221,19 +217,21 @@ namespace l2net::ssh
         class scoped_session
         {
         public:
-            scoped_session(session_pool &pool, session *sess)
-                : pool_{&pool}, session_{sess} {}
+            scoped_session(session_pool &pool, session *sess) : pool_{&pool}, session_{sess}
+            {
+            }
             ~scoped_session()
             {
                 if (session_)
+                {
                     pool_->release(session_);
+                }
             }
 
             scoped_session(scoped_session const &) = delete;
             auto operator=(scoped_session const &) -> scoped_session & = delete;
 
-            scoped_session(scoped_session &&other) noexcept
-                : pool_{other.pool_}, session_{other.session_}
+            scoped_session(scoped_session &&other) noexcept : pool_{other.pool_}, session_{other.session_}
             {
                 other.session_ = nullptr;
             }
@@ -242,7 +240,9 @@ namespace l2net::ssh
                 if (this != &other)
                 {
                     if (session_)
+                    {
                         pool_->release(session_);
+                    }
                     pool_ = other.pool_;
                     session_ = other.session_;
                     other.session_ = nullptr;
@@ -250,10 +250,22 @@ namespace l2net::ssh
                 return *this;
             }
 
-            [[nodiscard]] auto get() const noexcept -> session * { return session_; }
-            [[nodiscard]] auto operator->() const noexcept -> session * { return session_; }
-            [[nodiscard]] auto operator*() const noexcept -> session & { return *session_; }
-            [[nodiscard]] explicit operator bool() const noexcept { return session_ != nullptr; }
+            [[nodiscard]] auto get() const noexcept -> session *
+            {
+                return session_;
+            }
+            [[nodiscard]] auto operator->() const noexcept -> session *
+            {
+                return session_;
+            }
+            [[nodiscard]] auto operator*() const noexcept -> session &
+            {
+                return *session_;
+            }
+            [[nodiscard]] explicit operator bool() const noexcept
+            {
+                return session_ != nullptr;
+            }
 
         private:
             session_pool *pool_;

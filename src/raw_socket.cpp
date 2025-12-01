@@ -27,8 +27,7 @@ namespace l2net
     // raw_socket implementation
     // ============================================================================
 
-    raw_socket::raw_socket(int const fd, protocol const proto) noexcept
-        : fd_{fd}, proto_{proto}
+    raw_socket::raw_socket(int const fd, protocol const proto) noexcept : fd_{fd}, proto_{proto}
     {
     }
 
@@ -70,9 +69,7 @@ namespace l2net
         return raw_socket{fd, proto};
     }
 
-    auto raw_socket::create_bound(
-        interface_info const &iface,
-        protocol const proto) noexcept -> result<raw_socket>
+    auto raw_socket::create_bound(interface_info const &iface, protocol const proto) noexcept -> result<raw_socket>
     {
         auto sock_result = create(proto);
         if (!sock_result.has_value())
@@ -180,10 +177,8 @@ namespace l2net
         return {};
     }
 
-    auto raw_socket::send_to(
-        std::span<std::uint8_t const> data,
-        interface_info const &iface,
-        mac_address const &dest_mac) noexcept -> result<std::size_t>
+    auto raw_socket::send_to(std::span<std::uint8_t const> data, interface_info const &iface,
+                             mac_address const &dest_mac) noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -196,8 +191,8 @@ namespace l2net
         addr.sll_halen = ETH_ALEN;
         std::copy_n(dest_mac.data(), ETH_ALEN, addr.sll_addr);
 
-        auto const sent = ::sendto(fd_, data.data(), data.size(), 0,
-                                   reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+        auto const sent =
+            ::sendto(fd_, data.data(), data.size(), 0, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
 
         if (sent < 0)
         {
@@ -207,9 +202,8 @@ namespace l2net
         return static_cast<std::size_t>(sent);
     }
 
-    auto raw_socket::send_raw(
-        std::span<std::uint8_t const> data,
-        interface_info const &iface) noexcept -> result<std::size_t>
+    auto raw_socket::send_raw(std::span<std::uint8_t const> data, interface_info const &iface) noexcept
+        -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -222,8 +216,8 @@ namespace l2net
         addr.sll_halen = ETH_ALEN;
         // dest mac is in the frame already
 
-        auto const sent = ::sendto(fd_, data.data(), data.size(), 0,
-                                   reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+        auto const sent =
+            ::sendto(fd_, data.data(), data.size(), 0, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
 
         if (sent < 0)
         {
@@ -254,9 +248,8 @@ namespace l2net
         return static_cast<std::size_t>(received);
     }
 
-    auto raw_socket::receive_with_timeout(
-        std::span<std::uint8_t> buffer,
-        std::chrono::milliseconds timeout) noexcept -> result<std::size_t>
+    auto raw_socket::receive_with_timeout(std::span<std::uint8_t> buffer, std::chrono::milliseconds timeout) noexcept
+        -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -295,15 +288,16 @@ namespace l2net
     // tcp_socket implementation
     // ============================================================================
 
-    tcp_socket::tcp_socket(int const fd) noexcept : fd_{fd} {}
+    tcp_socket::tcp_socket(int const fd) noexcept : fd_{fd}
+    {
+    }
 
     tcp_socket::~tcp_socket() noexcept
     {
         close();
     }
 
-    tcp_socket::tcp_socket(tcp_socket &&other) noexcept
-        : fd_{std::exchange(other.fd_, -1)}
+    tcp_socket::tcp_socket(tcp_socket &&other) noexcept : fd_{std::exchange(other.fd_, -1)}
     {
     }
 
@@ -368,10 +362,8 @@ namespace l2net
         return tcp_socket{client_fd};
     }
 
-    auto tcp_socket::connect(
-        std::string_view const ip,
-        std::uint16_t const port,
-        std::chrono::seconds const timeout) noexcept -> result<tcp_socket>
+    auto tcp_socket::connect(std::string_view const ip, std::uint16_t const port,
+                             std::chrono::seconds const timeout) noexcept -> result<tcp_socket>
     {
         auto const fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
