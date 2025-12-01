@@ -13,11 +13,9 @@ namespace l2net
     // ipc_channel implementation
     // ============================================================================
 
-    ipc_channel::ipc_channel(
-        raw_socket socket,
-        interface_info iface,
-        ipc_config config) noexcept
-        : socket_{std::move(socket)}, interface_{std::move(iface)}, config_{config}, recv_buffer_(config.recv_buffer_size)
+    ipc_channel::ipc_channel(raw_socket socket, interface_info iface, ipc_config config) noexcept
+        : socket_{std::move(socket)}, interface_{std::move(iface)}, config_{config},
+          recv_buffer_(config.recv_buffer_size)
     {
     }
 
@@ -36,8 +34,7 @@ namespace l2net
         }
 
         // create socket with our protocol
-        auto sock_result = raw_socket::create(
-            static_cast<raw_socket::protocol>(config.protocol_id));
+        auto sock_result = raw_socket::create(static_cast<raw_socket::protocol>(config.protocol_id));
         if (!sock_result.has_value())
         {
             return std::unexpected{sock_result.error()};
@@ -62,21 +59,16 @@ namespace l2net
             }
         }
 
-        return ipc_channel{
-            std::move(*sock_result),
-            std::move(*iface_result),
-            config};
+        return ipc_channel{std::move(*sock_result), std::move(*iface_result), config};
     }
 
     auto ipc_channel::send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>
     {
         // build frame: header + payload
         // for loopback, MACs don't matter but must be present
-        auto frame_result = build_simple_frame(
-            mac_address::null(), // dest - ignored on loopback
-            mac_address::null(), // src - ignored on loopback
-            config_.protocol_id,
-            data);
+        auto frame_result = build_simple_frame(mac_address::null(), // dest - ignored on loopback
+                                               mac_address::null(), // src - ignored on loopback
+                                               config_.protocol_id, data);
 
         if (!frame_result.has_value())
         {
@@ -88,9 +80,8 @@ namespace l2net
 
     auto ipc_channel::send(std::string_view const message) noexcept -> result<std::size_t>
     {
-        return send(std::span<std::uint8_t const>{
-            reinterpret_cast<std::uint8_t const *>(message.data()),
-            message.size()});
+        return send(
+            std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const *>(message.data()), message.size()});
     }
 
     auto ipc_channel::receive() noexcept -> result<std::vector<std::uint8_t>>
@@ -148,8 +139,7 @@ namespace l2net
         return std::vector<std::uint8_t>{payload.begin(), payload.end()};
     }
 
-    auto ipc_channel::try_receive() noexcept
-        -> result<std::optional<std::vector<std::uint8_t>>>
+    auto ipc_channel::try_receive() noexcept -> result<std::optional<std::vector<std::uint8_t>>>
     {
         auto result = receive_with_timeout(std::chrono::milliseconds{0});
 
@@ -200,9 +190,7 @@ namespace l2net
             return std::unexpected{receiver.error()};
         }
 
-        return ipc_pair{
-            std::move(*sender),
-            std::move(*receiver)};
+        return ipc_pair{std::move(*sender), std::move(*receiver)};
     }
 
 } // namespace l2net

@@ -23,16 +23,26 @@ namespace l2net
             int fd_{-1};
 
         public:
-            ioctl_socket() noexcept : fd_{::socket(AF_INET, SOCK_DGRAM, 0)} {}
+            ioctl_socket() noexcept : fd_{::socket(AF_INET, SOCK_DGRAM, 0)}
+            {
+            }
             ~ioctl_socket() noexcept
             {
                 if (fd_ >= 0)
+                {
                     ::close(fd_);
+                }
             }
             ioctl_socket(ioctl_socket const &) = delete;
             ioctl_socket &operator=(ioctl_socket const &) = delete;
-            [[nodiscard]] auto fd() const noexcept -> int { return fd_; }
-            [[nodiscard]] auto is_valid() const noexcept -> bool { return fd_ >= 0; }
+            [[nodiscard]] auto fd() const noexcept -> int
+            {
+                return fd_;
+            }
+            [[nodiscard]] auto is_valid() const noexcept -> bool
+            {
+                return fd_ >= 0;
+            }
         };
 
         // RAII wrapper for ifaddrs
@@ -41,15 +51,23 @@ namespace l2net
             struct ifaddrs *addrs_{nullptr};
 
         public:
-            ifaddrs_guard() noexcept { ::getifaddrs(&addrs_); }
+            ifaddrs_guard() noexcept
+            {
+                ::getifaddrs(&addrs_);
+            }
             ~ifaddrs_guard() noexcept
             {
                 if (addrs_)
+                {
                     ::freeifaddrs(addrs_);
+                }
             }
             ifaddrs_guard(ifaddrs_guard const &) = delete;
             ifaddrs_guard &operator=(ifaddrs_guard const &) = delete;
-            [[nodiscard]] auto get() const noexcept -> struct ifaddrs * { return addrs_; }
+            [[nodiscard]] auto get() const noexcept -> struct ifaddrs *
+            {
+                return addrs_;
+            }
         };
 
     } // anonymous namespace
@@ -93,11 +111,17 @@ namespace l2net
             auto const hex_to_int = [](char const c) -> int
             {
                 if (c >= '0' && c <= '9')
+                {
                     return c - '0';
+                }
                 if (c >= 'a' && c <= 'f')
+                {
                     return c - 'a' + 10;
+                }
                 if (c >= 'A' && c <= 'F')
+                {
                     return c - 'A' + 10;
+                }
                 return -1;
             };
 
@@ -123,8 +147,8 @@ namespace l2net
 
     auto mac_address::to_string() const -> std::string
     {
-        return fmt::format("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-                           bytes_[0], bytes_[1], bytes_[2], bytes_[3], bytes_[4], bytes_[5]);
+        return fmt::format("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", bytes_[0], bytes_[1], bytes_[2], bytes_[3],
+                           bytes_[4], bytes_[5]);
     }
 
     // ----------------------------------------------------------------------------
@@ -146,8 +170,7 @@ namespace l2net
 
         struct ifreq ifr{};
         // safe copy because we checked size above
-        std::copy_n(interface_name.begin(),
-                    std::min(interface_name.size(), static_cast<std::size_t>(IFNAMSIZ - 1)),
+        std::copy_n(interface_name.begin(), std::min(interface_name.size(), static_cast<std::size_t>(IFNAMSIZ - 1)),
                     ifr.ifr_name);
 
         interface_info info;
@@ -165,8 +188,7 @@ namespace l2net
         {
             return std::unexpected{error_code::interface_query_failed};
         }
-        std::copy_n(reinterpret_cast<std::uint8_t const *>(ifr.ifr_hwaddr.sa_data),
-                    mac_address::size,
+        std::copy_n(reinterpret_cast<std::uint8_t const *>(ifr.ifr_hwaddr.sa_data), mac_address::size,
                     info.mac_.data());
 
         // get flags
@@ -199,7 +221,9 @@ namespace l2net
         for (auto *ifa = addrs.get(); ifa != nullptr; ifa = ifa->ifa_next)
         {
             if (!ifa->ifa_name)
+            {
                 continue;
+            }
 
             std::string name{ifa->ifa_name};
             // avoid duplicates (interfaces can appear multiple times for different address families)
@@ -249,9 +273,7 @@ namespace l2net
             return std::unexpected{all.error()};
         }
 
-        auto it = std::find_if(all->begin(), all->end(),
-                               [](auto const &iface)
-                               { return iface.is_loopback(); });
+        auto it = std::find_if(all->begin(), all->end(), [](auto const &iface) { return iface.is_loopback(); });
 
         if (it != all->end())
         {

@@ -2,6 +2,7 @@
 
 #include "l2net/frame.hpp"
 #include "l2net/vlan.hpp"
+
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <random>
@@ -30,11 +31,8 @@ namespace l2net::testing
     inline constexpr mac_address TEST_SRC_MAC{0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 
     // helper to verify basic frame properties
-    inline void verify_frame_header(
-        std::span<std::uint8_t const> frame,
-        mac_address const &expected_dest,
-        mac_address const &expected_src,
-        std::uint16_t expected_type)
+    inline void verify_frame_header(std::span<std::uint8_t const> frame, mac_address const &expected_dest,
+                                    mac_address const &expected_src, std::uint16_t expected_type)
     {
         REQUIRE(frame.size() >= constants::eth_header_size);
         frame_parser parser{frame};
@@ -45,9 +43,7 @@ namespace l2net::testing
     }
 
     // helper to verify vlan tag
-    inline void verify_vlan_tag(
-        std::span<std::uint8_t const> frame,
-        vlan_tci const &expected_tci)
+    inline void verify_vlan_tag(std::span<std::uint8_t const> frame, vlan_tci const &expected_tci)
     {
         REQUIRE(frame.size() >= constants::eth_vlan_header_size);
         frame_parser parser{frame};

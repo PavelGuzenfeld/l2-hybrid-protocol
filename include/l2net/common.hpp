@@ -43,8 +43,7 @@ namespace l2net
 
     struct error_code_formatter
     {
-        [[nodiscard]] static constexpr auto to_string(error_code const ec) noexcept
-            -> std::string_view
+        [[nodiscard]] static constexpr auto to_string(error_code const ec) noexcept -> std::string_view
         {
             switch (ec)
             {
@@ -107,19 +106,38 @@ namespace l2net
         constexpr auto operator=(mac_address &&) noexcept -> mac_address & = default;
         constexpr ~mac_address() noexcept = default;
 
-        constexpr explicit mac_address(storage_type const &bytes) noexcept : bytes_{bytes} {}
+        constexpr explicit mac_address(storage_type const &bytes) noexcept : bytes_{bytes}
+        {
+        }
 
-        constexpr mac_address(
-            std::uint8_t const b0, std::uint8_t const b1, std::uint8_t const b2,
-            std::uint8_t const b3, std::uint8_t const b4, std::uint8_t const b5) noexcept : bytes_{b0, b1, b2, b3, b4, b5} {}
+        constexpr mac_address(std::uint8_t const b0, std::uint8_t const b1, std::uint8_t const b2,
+                              std::uint8_t const b3, std::uint8_t const b4, std::uint8_t const b5) noexcept
+            : bytes_{b0, b1, b2, b3, b4, b5}
+        {
+        }
 
         [[nodiscard]] static auto from_string(std::string_view str) noexcept -> result<mac_address>;
 
-        [[nodiscard]] constexpr auto data() noexcept -> std::uint8_t * { return bytes_.data(); }
-        [[nodiscard]] constexpr auto data() const noexcept -> std::uint8_t const * { return bytes_.data(); }
-        [[nodiscard]] constexpr auto bytes() const noexcept -> storage_type const & { return bytes_; }
-        [[nodiscard]] constexpr auto as_span() noexcept -> std::span<std::uint8_t, size> { return bytes_; }
-        [[nodiscard]] constexpr auto as_span() const noexcept -> std::span<std::uint8_t const, size> { return bytes_; }
+        [[nodiscard]] constexpr auto data() noexcept -> std::uint8_t *
+        {
+            return bytes_.data();
+        }
+        [[nodiscard]] constexpr auto data() const noexcept -> std::uint8_t const *
+        {
+            return bytes_.data();
+        }
+        [[nodiscard]] constexpr auto bytes() const noexcept -> storage_type const &
+        {
+            return bytes_;
+        }
+        [[nodiscard]] constexpr auto as_span() noexcept -> std::span<std::uint8_t, size>
+        {
+            return bytes_;
+        }
+        [[nodiscard]] constexpr auto as_span() const noexcept -> std::span<std::uint8_t const, size>
+        {
+            return bytes_;
+        }
 
         [[nodiscard]] auto to_string() const -> std::string;
 
@@ -173,7 +191,7 @@ namespace l2net
 
         inline constexpr std::uint16_t max_vlan_id = 4095;
         inline constexpr std::uint8_t max_priority = 7;
-    }
+    } // namespace constants
 
     namespace byte_utils
     {
@@ -193,7 +211,7 @@ namespace l2net
         {
             return htons_constexpr(value);
         }
-    }
+    } // namespace byte_utils
 
 } // namespace l2net
 
@@ -202,7 +220,6 @@ struct fmt::formatter<l2net::error_code> : fmt::formatter<std::string_view>
 {
     auto format(l2net::error_code const ec, format_context &ctx) const
     {
-        return fmt::formatter<std::string_view>::format(
-            l2net::error_code_formatter::to_string(ec), ctx);
+        return fmt::formatter<std::string_view>::format(l2net::error_code_formatter::to_string(ec), ctx);
     }
 };

@@ -3,16 +3,15 @@
 
 #include "l2net/ssh_session.hpp"
 
-#include <fmt/chrono.h>
-#include <fmt/color.h>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <csignal>
 #include <filesystem>
+#include <fmt/chrono.h>
+#include <fmt/color.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <fstream>
 #include <numeric>
 #include <optional>
@@ -121,9 +120,8 @@ namespace
     // result parsing - extracting numbers from remote_node output
     // =============================================================================
 
-    [[nodiscard]] auto parse_latency_output(
-        std::string const &output,
-        std::size_t payload_size) -> std::optional<latency_result>
+    [[nodiscard]] auto parse_latency_output(std::string const &output, std::size_t payload_size)
+        -> std::optional<latency_result>
     {
         latency_result result{};
         result.payload_size = payload_size;
@@ -133,20 +131,23 @@ namespace
         {
             auto line_start = output.rfind('\n', pos);
             if (line_start == std::string::npos)
+            {
                 line_start = 0;
+            }
             else
+            {
                 ++line_start;
+            }
 
             auto line = output.substr(line_start, output.find('\n', pos) - line_start);
 
-            if (std::sscanf(line.c_str(), "%lu packets transmitted, %lu received",
-                            &result.packets_sent, &result.packets_received) >= 2)
+            if (std::sscanf(line.c_str(), "%lu packets transmitted, %lu received", &result.packets_sent,
+                            &result.packets_received) >= 2)
             {
 
                 if (result.packets_sent > 0)
                 {
-                    result.loss_percent = 100.0 *
-                                          static_cast<double>(result.packets_sent - result.packets_received) /
+                    result.loss_percent = 100.0 * static_cast<double>(result.packets_sent - result.packets_received) /
                                           static_cast<double>(result.packets_sent);
                 }
             }
@@ -157,9 +158,13 @@ namespace
         {
             auto line_start = output.rfind('\n', pos);
             if (line_start == std::string::npos)
+            {
                 line_start = 0;
+            }
             else
+            {
                 ++line_start;
+            }
 
             auto line = output.substr(line_start);
 
@@ -170,9 +175,8 @@ namespace
                 auto values_str = line.substr(eq_pos + 1);
 
                 // try parsing 5 values first (min/avg/max/p50/p99)
-                if (std::sscanf(values_str.c_str(), " %lf/%lf/%lf/%lf/%lf",
-                                &result.min_us, &result.avg_us, &result.max_us,
-                                &result.p50_us, &result.p99_us) >= 5)
+                if (std::sscanf(values_str.c_str(), " %lf/%lf/%lf/%lf/%lf", &result.min_us, &result.avg_us,
+                                &result.max_us, &result.p50_us, &result.p99_us) >= 5)
                 {
                     result.p95_us = result.p99_us; // approximate
                 }
@@ -185,9 +189,8 @@ namespace
         return result;
     }
 
-    [[nodiscard]] auto parse_throughput_output(
-        std::string const &output,
-        std::size_t payload_size) -> std::optional<throughput_result>
+    [[nodiscard]] auto parse_throughput_output(std::string const &output, std::size_t payload_size)
+        -> std::optional<throughput_result>
     {
         throughput_result result{};
         result.payload_size = payload_size;
@@ -213,8 +216,7 @@ namespace
         // parse: "Average: X pps, Y Mbps"
         if (auto pos = output.find("Average:"); pos != std::string::npos)
         {
-            std::sscanf(output.c_str() + pos, "Average: %lf pps, %lf Mbps",
-                        &result.packets_per_sec, &result.mbps);
+            std::sscanf(output.c_str() + pos, "Average: %lf pps, %lf Mbps", &result.packets_per_sec, &result.mbps);
         }
 
         result.gbps = result.mbps / 1000.0;
@@ -229,8 +231,9 @@ namespace
     class benchmark_orchestrator
     {
     public:
-        explicit benchmark_orchestrator(benchmark_config config)
-            : config_{std::move(config)} {}
+        explicit benchmark_orchestrator(benchmark_config config) : config_{std::move(config)}
+        {
+        }
 
         [[nodiscard]] auto run() -> std::optional<benchmark_results>;
 
@@ -305,10 +308,8 @@ namespace
                    "Remote: {} ({}) - {}\n"
                    "Payload sizes: {}\n"
                    "Packets per test: {}\n\n",
-                   results_.local_host, config_.local_interface, config_.local_mac,
-                   config_.remote_host, config_.remote_interface, config_.remote_mac,
-                   config_.payload_sizes,
-                   config_.packets_per_test);
+                   results_.local_host, config_.local_interface, config_.local_mac, config_.remote_host,
+                   config_.remote_interface, config_.remote_mac, config_.payload_sizes, config_.packets_per_test);
 
         // run latency tests
         fmt::print(fmt::fg(fmt::color::yellow), "\n=== Running Latency Tests ===\n\n");
@@ -333,22 +334,20 @@ namespace
 
     auto benchmark_orchestrator::connect_ssh() -> bool
     {
-        l2net::ssh::session_config ssh_config{
-            .host = config_.remote_host,
-            .port = config_.ssh_port,
-            .username = config_.ssh_username,
-            .password = config_.ssh_password,
-            .private_key_path = config_.ssh_key_path,
-            .connect_timeout = std::chrono::seconds{30},
-            .command_timeout = config_.test_timeout,
-            .strict_host_key_checking = false,
-            .verbosity = config_.verbose ? 1 : 0};
+        l2net::ssh::session_config ssh_config{.host = config_.remote_host,
+                                              .port = config_.ssh_port,
+                                              .username = config_.ssh_username,
+                                              .password = config_.ssh_password,
+                                              .private_key_path = config_.ssh_key_path,
+                                              .connect_timeout = std::chrono::seconds{30},
+                                              .command_timeout = config_.test_timeout,
+                                              .strict_host_key_checking = false,
+                                              .verbosity = config_.verbose ? 1 : 0};
 
         auto result = l2net::ssh::session::connect(ssh_config);
         if (!result.has_value())
         {
-            print_error(fmt::format("ssh connection failed: {}",
-                                    l2net::ssh::to_string(result.error())));
+            print_error(fmt::format("ssh connection failed: {}", l2net::ssh::to_string(result.error())));
             return false;
         }
 
@@ -364,8 +363,7 @@ namespace
 
         if (config_.verbose)
         {
-            print_status(fmt::format("connected to {} as {}",
-                                     config_.remote_host, config_.ssh_username));
+            print_status(fmt::format("connected to {} as {}", config_.remote_host, config_.ssh_username));
         }
 
         return true;
@@ -376,8 +374,7 @@ namespace
         // check if local binary exists
         if (!std::filesystem::exists(config_.local_binary))
         {
-            print_error(fmt::format("local binary not found: {}",
-                                    config_.local_binary.string()));
+            print_error(fmt::format("local binary not found: {}", config_.local_binary.string()));
             return false;
         }
 
@@ -395,29 +392,22 @@ namespace
         }
 
         // upload binary
-        print_status(fmt::format("uploading {} to {}:{}",
-                                 config_.local_binary.filename().string(),
-                                 config_.remote_host,
+        print_status(fmt::format("uploading {} to {}:{}", config_.local_binary.filename().string(), config_.remote_host,
                                  config_.remote_binary_path));
 
-        auto upload_result = ssh_session_->upload_file(
-            config_.local_binary,
-            config_.remote_binary_path,
-            0755);
+        auto upload_result = ssh_session_->upload_file(config_.local_binary, config_.remote_binary_path, 0755);
 
         if (!upload_result.has_value())
         {
-            print_error(fmt::format("failed to upload binary: {}",
-                                    l2net::ssh::to_string(upload_result.error())));
+            print_error(fmt::format("failed to upload binary: {}", l2net::ssh::to_string(upload_result.error())));
             return false;
         }
 
         // verify upload
-        auto verify_result = ssh_session_->execute(
-            fmt::format("test -x '{}' && echo 'ok'", config_.remote_binary_path));
+        auto verify_result =
+            ssh_session_->execute(fmt::format("test -x '{}' && echo 'ok'", config_.remote_binary_path));
 
-        if (!verify_result.has_value() ||
-            verify_result->stdout_output.find("ok") == std::string::npos)
+        if (!verify_result.has_value() || verify_result->stdout_output.find("ok") == std::string::npos)
         {
             print_error("binary verification failed");
             return false;
@@ -432,21 +422,18 @@ namespace
         // detect local mac if not specified
         if (config_.local_mac.empty())
         {
-            std::ifstream mac_file{
-                fmt::format("/sys/class/net/{}/address", config_.local_interface)};
+            std::ifstream mac_file{fmt::format("/sys/class/net/{}/address", config_.local_interface)};
             if (mac_file.is_open())
             {
                 std::getline(mac_file, config_.local_mac);
                 // trim whitespace
-                config_.local_mac.erase(
-                    std::remove_if(config_.local_mac.begin(), config_.local_mac.end(), ::isspace),
-                    config_.local_mac.end());
+                config_.local_mac.erase(std::remove_if(config_.local_mac.begin(), config_.local_mac.end(), ::isspace),
+                                        config_.local_mac.end());
             }
 
             if (config_.local_mac.empty())
             {
-                print_error(fmt::format("failed to detect local mac for interface {}",
-                                        config_.local_interface));
+                print_error(fmt::format("failed to detect local mac for interface {}", config_.local_interface));
                 return false;
             }
         }
@@ -454,20 +441,17 @@ namespace
         // detect remote mac if not specified
         if (config_.remote_mac.empty())
         {
-            auto result = ssh_session_->execute(
-                fmt::format("cat /sys/class/net/{}/address", config_.remote_interface));
+            auto result = ssh_session_->execute(fmt::format("cat /sys/class/net/{}/address", config_.remote_interface));
 
             if (!result.has_value() || !result->success())
             {
-                print_error(fmt::format("failed to detect remote mac for interface {}",
-                                        config_.remote_interface));
+                print_error(fmt::format("failed to detect remote mac for interface {}", config_.remote_interface));
                 return false;
             }
 
             config_.remote_mac = result->stdout_output;
-            config_.remote_mac.erase(
-                std::remove_if(config_.remote_mac.begin(), config_.remote_mac.end(), ::isspace),
-                config_.remote_mac.end());
+            config_.remote_mac.erase(std::remove_if(config_.remote_mac.begin(), config_.remote_mac.end(), ::isspace),
+                                     config_.remote_mac.end());
 
             if (config_.remote_mac.empty())
             {
@@ -502,14 +486,12 @@ namespace
                 // print result
                 fmt::print("  payload={:>5} bytes | rtt min/avg/max = {:>6.1f}/{:>6.1f}/{:>6.1f} us | "
                            "p99={:>6.1f} us | loss={:.2f}%\n",
-                           result->payload_size,
-                           result->min_us, result->avg_us, result->max_us,
-                           result->p99_us, result->loss_percent);
+                           result->payload_size, result->min_us, result->avg_us, result->max_us, result->p99_us,
+                           result->loss_percent);
             }
             else
             {
-                print_error(fmt::format("latency test failed for payload size {}",
-                                        config_.payload_sizes[i]));
+                print_error(fmt::format("latency test failed for payload size {}", config_.payload_sizes[i]));
             }
         }
 
@@ -532,23 +514,18 @@ namespace
 
                 // print result
                 fmt::print("  payload={:>5} bytes | {:>10.0f} pps | {:>8.2f} Mbps | {:>6.3f} Gbps\n",
-                           result->payload_size,
-                           result->packets_per_sec,
-                           result->mbps,
-                           result->gbps);
+                           result->payload_size, result->packets_per_sec, result->mbps, result->gbps);
             }
             else
             {
-                print_error(fmt::format("throughput test failed for payload size {}",
-                                        config_.payload_sizes[i]));
+                print_error(fmt::format("throughput test failed for payload size {}", config_.payload_sizes[i]));
             }
         }
 
         return results;
     }
 
-    auto benchmark_orchestrator::run_single_latency_test(
-        std::size_t payload_size) -> std::optional<latency_result>
+    auto benchmark_orchestrator::run_single_latency_test(std::size_t payload_size) -> std::optional<latency_result>
     {
         // kill any existing remote processes
         kill_remote_processes();
@@ -557,16 +534,12 @@ namespace
         std::string vlan_args{};
         if (config_.use_vlan)
         {
-            vlan_args = fmt::format(" --vlan {} --priority {}",
-                                    config_.vlan_id, config_.vlan_priority);
+            vlan_args = fmt::format(" --vlan {} --priority {}", config_.vlan_id, config_.vlan_priority);
         }
 
         // start echo server on remote
-        auto server_cmd = fmt::format(
-            "sudo {} echo {} --timeout 30000{} &",
-            config_.remote_binary_path,
-            config_.remote_interface,
-            vlan_args);
+        auto server_cmd = fmt::format("sudo {} echo {} --timeout 30000{} &", config_.remote_binary_path,
+                                      config_.remote_interface, vlan_args);
 
         if (config_.verbose)
         {
@@ -574,8 +547,8 @@ namespace
         }
 
         // use nohup to keep server running
-        auto start_result = ssh_session_->execute(
-            fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
+        auto start_result =
+            ssh_session_->execute(fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
 
         if (!start_result.has_value())
         {
@@ -602,14 +575,9 @@ namespace
         }
 
         // run local ping client
-        auto client_cmd = fmt::format(
-            "sudo {} ping {} --peer-mac {} --payload-size {} --count {} --quiet{}",
-            config_.local_binary.string(),
-            config_.local_interface,
-            config_.remote_mac,
-            payload_size,
-            config_.packets_per_test,
-            vlan_args);
+        auto client_cmd = fmt::format("sudo {} ping {} --peer-mac {} --payload-size {} --count {} --quiet{}",
+                                      config_.local_binary.string(), config_.local_interface, config_.remote_mac,
+                                      payload_size, config_.packets_per_test, vlan_args);
 
         if (config_.verbose)
         {
@@ -652,8 +620,8 @@ namespace
         return parse_latency_output(output, payload_size);
     }
 
-    auto benchmark_orchestrator::run_single_throughput_test(
-        std::size_t payload_size) -> std::optional<throughput_result>
+    auto benchmark_orchestrator::run_single_throughput_test(std::size_t payload_size)
+        -> std::optional<throughput_result>
     {
         // kill any existing remote processes
         kill_remote_processes();
@@ -662,24 +630,20 @@ namespace
         std::string vlan_args{};
         if (config_.use_vlan)
         {
-            vlan_args = fmt::format(" --vlan {} --priority {}",
-                                    config_.vlan_id, config_.vlan_priority);
+            vlan_args = fmt::format(" --vlan {} --priority {}", config_.vlan_id, config_.vlan_priority);
         }
 
         // start sink server on remote
-        auto server_cmd = fmt::format(
-            "sudo {} sink {} --timeout 5000{}",
-            config_.remote_binary_path,
-            config_.remote_interface,
-            vlan_args);
+        auto server_cmd = fmt::format("sudo {} sink {} --timeout 5000{}", config_.remote_binary_path,
+                                      config_.remote_interface, vlan_args);
 
         if (config_.verbose)
         {
             print_status(fmt::format("starting remote sink: {}", server_cmd));
         }
 
-        auto start_result = ssh_session_->execute(
-            fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
+        auto start_result =
+            ssh_session_->execute(fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
 
         if (!start_result.has_value())
         {
@@ -691,14 +655,9 @@ namespace
         std::this_thread::sleep_for(std::chrono::milliseconds{500});
 
         // run local flood client
-        auto client_cmd = fmt::format(
-            "sudo {} flood {} --peer-mac {} --payload-size {} --count {}{}",
-            config_.local_binary.string(),
-            config_.local_interface,
-            config_.remote_mac,
-            payload_size,
-            config_.packets_per_test,
-            vlan_args);
+        auto client_cmd =
+            fmt::format("sudo {} flood {} --peer-mac {} --payload-size {} --count {}{}", config_.local_binary.string(),
+                        config_.local_interface, config_.remote_mac, payload_size, config_.packets_per_test, vlan_args);
 
         if (config_.verbose)
         {
@@ -760,10 +719,8 @@ namespace
         fmt::print(fmt::fg(fmt::color::red), "[!] {}\n", msg);
     }
 
-    auto benchmark_orchestrator::print_progress(
-        std::string_view test_type,
-        std::size_t current,
-        std::size_t total) -> void
+    auto benchmark_orchestrator::print_progress(std::string_view test_type, std::size_t current, std::size_t total)
+        -> void
     {
         fmt::print(fmt::fg(fmt::color::cyan), "[{}/{}] {} test:\n", current, total, test_type);
     }
@@ -789,9 +746,10 @@ namespace
         // latency results
         if (!results.latency_results.empty())
         {
-            fmt::print(fmt::fg(fmt::color::cyan), "┌─ LATENCY RESULTS ─────────────────────────────────────────────────────────────┐\n");
-            fmt::print("│ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>6} │\n",
-                       "Payload", "Min(us)", "Avg(us)", "Max(us)", "P50(us)", "P99(us)", "Loss%");
+            fmt::print(fmt::fg(fmt::color::cyan),
+                       "┌─ LATENCY RESULTS ─────────────────────────────────────────────────────────────┐\n");
+            fmt::print("│ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>8} │ {:>6} │\n", "Payload", "Min(us)", "Avg(us)",
+                       "Max(us)", "P50(us)", "P99(us)", "Loss%");
             fmt::print("├──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼────────┤\n");
 
             for (auto const &r : results.latency_results)
@@ -805,15 +763,16 @@ namespace
         // throughput results
         if (!results.throughput_results.empty())
         {
-            fmt::print(fmt::fg(fmt::color::cyan), "┌─ THROUGHPUT RESULTS ──────────────────────────────────────────────────────────┐\n");
-            fmt::print("│ {:>8} │ {:>12} │ {:>12} │ {:>10} │ {:>10} │\n",
-                       "Payload", "Packets/sec", "Mbps", "Gbps", "Duration");
+            fmt::print(fmt::fg(fmt::color::cyan),
+                       "┌─ THROUGHPUT RESULTS ──────────────────────────────────────────────────────────┐\n");
+            fmt::print("│ {:>8} │ {:>12} │ {:>12} │ {:>10} │ {:>10} │\n", "Payload", "Packets/sec", "Mbps", "Gbps",
+                       "Duration");
             fmt::print("├──────────┼──────────────┼──────────────┼────────────┼────────────┤\n");
 
             for (auto const &r : results.throughput_results)
             {
-                fmt::print("│ {:>8} │ {:>12.0f} │ {:>12.2f} │ {:>10.3f} │ {:>8.0f}ms │\n",
-                           r.payload_size, r.packets_per_sec, r.mbps, r.gbps, r.duration_ms);
+                fmt::print("│ {:>8} │ {:>12.0f} │ {:>12.2f} │ {:>10.3f} │ {:>8.0f}ms │\n", r.payload_size,
+                           r.packets_per_sec, r.mbps, r.gbps, r.duration_ms);
             }
             fmt::print("└──────────┴──────────────┴──────────────┴────────────┴────────────┘\n");
         }
@@ -887,12 +846,13 @@ namespace
             std::ofstream file{latency_file};
             if (file.is_open())
             {
-                file << "payload_size,packets_sent,packets_received,loss_percent,min_us,avg_us,max_us,p50_us,p95_us,p99_us,stddev_us\n";
+                file << "payload_size,packets_sent,packets_received,loss_percent,min_us,avg_us,max_us,p50_us,p95_us,"
+                        "p99_us,stddev_us\n";
                 for (auto const &r : results.latency_results)
                 {
                     file << fmt::format("{},{},{},{:.4f},{:.2f},{:.2f},{:.2f},{:.2f},{:.2f},{:.2f},{:.2f}\n",
-                                        r.payload_size, r.packets_sent, r.packets_received, r.loss_percent,
-                                        r.min_us, r.avg_us, r.max_us, r.p50_us, r.p95_us, r.p99_us, r.stddev_us);
+                                        r.payload_size, r.packets_sent, r.packets_received, r.loss_percent, r.min_us,
+                                        r.avg_us, r.max_us, r.p50_us, r.p95_us, r.p99_us, r.stddev_us);
                 }
                 fmt::print("Latency results written to {}\n", latency_file);
             }
@@ -907,9 +867,8 @@ namespace
                 file << "payload_size,packets_sent,bytes_sent,duration_ms,packets_per_sec,mbps,gbps\n";
                 for (auto const &r : results.throughput_results)
                 {
-                    file << fmt::format("{},{},{},{:.2f},{:.2f},{:.4f},{:.6f}\n",
-                                        r.payload_size, r.packets_sent, r.bytes_sent, r.duration_ms,
-                                        r.packets_per_sec, r.mbps, r.gbps);
+                    file << fmt::format("{},{},{},{:.2f},{:.2f},{:.4f},{:.6f}\n", r.payload_size, r.packets_sent,
+                                        r.bytes_sent, r.duration_ms, r.packets_per_sec, r.mbps, r.gbps);
                 }
                 fmt::print("Throughput results written to {}\n", throughput_file);
             }

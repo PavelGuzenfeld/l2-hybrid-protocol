@@ -49,32 +49,35 @@ namespace l2net
 
         [[nodiscard]] static auto create(protocol proto = protocol::all) noexcept -> result<raw_socket>;
 
-        [[nodiscard]] static auto create_bound(
-            interface_info const &iface,
-            protocol proto = protocol::all) noexcept -> result<raw_socket>;
+        [[nodiscard]] static auto create_bound(interface_info const &iface, protocol proto = protocol::all) noexcept
+            -> result<raw_socket>;
 
         [[nodiscard]] auto bind(interface_info const &iface) noexcept -> void_result;
         [[nodiscard]] auto set_options(socket_options const &opts) noexcept -> void_result;
 
-        [[nodiscard]] auto send_to(
-            std::span<std::uint8_t const> data,
-            interface_info const &iface,
-            mac_address const &dest_mac) noexcept -> result<std::size_t>;
+        [[nodiscard]] auto send_to(std::span<std::uint8_t const> data, interface_info const &iface,
+                                   mac_address const &dest_mac) noexcept -> result<std::size_t>;
 
-        [[nodiscard]] auto send_raw(
-            std::span<std::uint8_t const> data,
-            interface_info const &iface) noexcept -> result<std::size_t>;
+        [[nodiscard]] auto send_raw(std::span<std::uint8_t const> data, interface_info const &iface) noexcept
+            -> result<std::size_t>;
 
-        [[nodiscard]] auto receive(
-            std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>;
+        [[nodiscard]] auto receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>;
 
-        [[nodiscard]] auto receive_with_timeout(
-            std::span<std::uint8_t> buffer,
-            std::chrono::milliseconds timeout) noexcept -> result<std::size_t>;
+        [[nodiscard]] auto receive_with_timeout(std::span<std::uint8_t> buffer,
+                                                std::chrono::milliseconds timeout) noexcept -> result<std::size_t>;
 
-        [[nodiscard]] constexpr auto is_valid() const noexcept -> bool { return fd_ >= 0; }
-        [[nodiscard]] constexpr auto fd() const noexcept -> int { return fd_; }
-        [[nodiscard]] constexpr auto protocol_type() const noexcept -> protocol { return proto_; }
+        [[nodiscard]] constexpr auto is_valid() const noexcept -> bool
+        {
+            return fd_ >= 0;
+        }
+        [[nodiscard]] constexpr auto fd() const noexcept -> int
+        {
+            return fd_;
+        }
+        [[nodiscard]] constexpr auto protocol_type() const noexcept -> protocol
+        {
+            return proto_;
+        }
         [[nodiscard]] auto bound_interface() const noexcept -> std::optional<interface_info> const &
         {
             return bound_interface_;
@@ -104,15 +107,17 @@ namespace l2net
         [[nodiscard]] static auto create_server(std::uint16_t port) noexcept -> result<tcp_socket>;
         [[nodiscard]] auto accept() noexcept -> result<tcp_socket>;
 
-        [[nodiscard]] static auto connect(
-            std::string_view ip,
-            std::uint16_t port,
-            std::chrono::seconds timeout = std::chrono::seconds{10}) noexcept -> result<tcp_socket>;
+        [[nodiscard]] static auto connect(std::string_view ip, std::uint16_t port,
+                                          std::chrono::seconds timeout = std::chrono::seconds{10}) noexcept
+            -> result<tcp_socket>;
 
         [[nodiscard]] auto send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>;
         [[nodiscard]] auto receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>;
 
-        [[nodiscard]] constexpr auto is_valid() const noexcept -> bool { return fd_ >= 0; }
+        [[nodiscard]] constexpr auto is_valid() const noexcept -> bool
+        {
+            return fd_ >= 0;
+        }
 
         auto close() noexcept -> void;
 

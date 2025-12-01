@@ -1,6 +1,7 @@
 // vlan.cpp - 802.1Q VLAN frame handling
 
 #include "l2net/vlan.hpp"
+
 #include <algorithm>
 
 namespace l2net
@@ -11,9 +12,13 @@ namespace l2net
         if (!tci_.is_valid())
         {
             if (tci_.vlan_id > constants::max_vlan_id)
+            {
                 return std::unexpected{error_code::invalid_vlan_id};
+            }
             if (tci_.priority > constants::max_priority)
+            {
                 return std::unexpected{error_code::invalid_priority};
+            }
         }
         return {};
     }
@@ -22,11 +27,15 @@ namespace l2net
     {
         auto const validation = validate();
         if (!validation.has_value())
+        {
             return std::unexpected{validation.error()};
+        }
         std::vector<std::uint8_t> frame(required_size());
         auto const written = build_into(frame);
         if (!written.has_value())
+        {
             return std::unexpected{written.error()};
+        }
         return frame;
     }
 
@@ -34,11 +43,15 @@ namespace l2net
     {
         auto const validation = validate();
         if (!validation.has_value())
+        {
             return std::unexpected{validation.error()};
+        }
 
         auto const total_size = required_size();
         if (buffer.size() < total_size)
+        {
             return std::unexpected{error_code::buffer_too_small};
+        }
 
         std::copy_n(dest_mac_.data(), 6, buffer.data());
         std::copy_n(src_mac_.data(), 6, buffer.data() + 6);
@@ -73,20 +86,38 @@ namespace l2net
         payload_.clear();
     }
 
-    auto build_vlan_frame(mac_address const &dest, mac_address const &src, vlan_tci const &tci, std::uint16_t const inner_ether_type, std::span<std::uint8_t const> payload) noexcept -> result<std::vector<std::uint8_t>>
+    auto build_vlan_frame(mac_address const &dest, mac_address const &src, vlan_tci const &tci,
+                          std::uint16_t const inner_ether_type, std::span<std::uint8_t const> payload) noexcept
+        -> result<std::vector<std::uint8_t>>
     {
-        return vlan_frame_builder{}.set_dest(dest).set_src(src).set_tci(tci).set_inner_ether_type(inner_ether_type).set_payload(payload).build();
+        return vlan_frame_builder{}
+            .set_dest(dest)
+            .set_src(src)
+            .set_tci(tci)
+            .set_inner_ether_type(inner_ether_type)
+            .set_payload(payload)
+            .build();
     }
 
-    auto build_vlan_frame(mac_address const &dest, mac_address const &src, vlan_tci const &tci, std::uint16_t const inner_ether_type, std::string_view const payload) noexcept -> result<std::vector<std::uint8_t>>
+    auto build_vlan_frame(mac_address const &dest, mac_address const &src, vlan_tci const &tci,
+                          std::uint16_t const inner_ether_type, std::string_view const payload) noexcept
+        -> result<std::vector<std::uint8_t>>
     {
-        return vlan_frame_builder{}.set_dest(dest).set_src(src).set_tci(tci).set_inner_ether_type(inner_ether_type).set_payload(payload).build();
+        return vlan_frame_builder{}
+            .set_dest(dest)
+            .set_src(src)
+            .set_tci(tci)
+            .set_inner_ether_type(inner_ether_type)
+            .set_payload(payload)
+            .build();
     }
 
     auto is_vlan_tagged(std::span<std::uint8_t const> frame) noexcept -> bool
     {
         if (frame.size() < constants::eth_header_size)
+        {
             return false;
+        }
         auto const type_field = static_cast<std::uint16_t>((static_cast<std::uint16_t>(frame[12]) << 8) | frame[13]);
         return type_field == constants::eth_p_8021q;
     }
@@ -94,9 +125,13 @@ namespace l2net
     auto strip_vlan_tag(std::span<std::uint8_t const> frame) noexcept -> result<std::vector<std::uint8_t>>
     {
         if (!is_vlan_tagged(frame))
+        {
             return std::vector<std::uint8_t>{frame.begin(), frame.end()};
+        }
         if (frame.size() < constants::eth_vlan_header_size)
+        {
             return std::unexpected{error_code::invalid_frame_size};
+        }
 
         std::vector<std::uint8_t> result;
         result.reserve(frame.size() - constants::vlan_header_size);

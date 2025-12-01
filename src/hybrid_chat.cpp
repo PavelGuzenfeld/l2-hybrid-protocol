@@ -2,6 +2,7 @@
 // industrial protocol simulation without the industrial-grade bugs
 
 #include "l2net/hybrid_chat.hpp"
+
 #include "l2net/frame.hpp"
 
 #include <algorithm>
@@ -13,11 +14,8 @@ namespace l2net
     // hybrid_endpoint implementation
     // ============================================================================
 
-    hybrid_endpoint::hybrid_endpoint(
-        interface_info iface,
-        hybrid_config config,
-        mac_address peer,
-        raw_socket socket) noexcept
+    hybrid_endpoint::hybrid_endpoint(interface_info iface, hybrid_config config, mac_address peer,
+                                     raw_socket socket) noexcept
         : interface_{std::move(iface)}, config_{config}, peer_mac_{peer}, data_socket_{std::move(socket)}
     {
     }
@@ -28,7 +26,8 @@ namespace l2net
     }
 
     hybrid_endpoint::hybrid_endpoint(hybrid_endpoint &&other) noexcept
-        : interface_{std::move(other.interface_)}, config_{other.config_}, peer_mac_{other.peer_mac_}, data_socket_{std::move(other.data_socket_)}, running_{other.running_.load()}
+        : interface_{std::move(other.interface_)}, config_{other.config_}, peer_mac_{other.peer_mac_},
+          data_socket_{std::move(other.data_socket_)}, running_{other.running_.load()}
     {
         other.running_.store(false);
         if (other.recv_thread_.joinable())
@@ -52,9 +51,8 @@ namespace l2net
         return *this;
     }
 
-    auto hybrid_endpoint::create_server(
-        interface_info const &iface,
-        hybrid_config const &config) noexcept -> result<hybrid_endpoint>
+    auto hybrid_endpoint::create_server(interface_info const &iface, hybrid_config const &config) noexcept
+        -> result<hybrid_endpoint>
     {
         // phase 1: tcp handshake
         auto peer_result = handshake::run_server(config.tcp_port, iface.mac(), config.tcp_timeout);
@@ -70,17 +68,11 @@ namespace l2net
             return std::unexpected{sock_result.error()};
         }
 
-        return hybrid_endpoint{
-            iface,
-            config,
-            *peer_result,
-            std::move(*sock_result)};
+        return hybrid_endpoint{iface, config, *peer_result, std::move(*sock_result)};
     }
 
-    auto hybrid_endpoint::create_client(
-        interface_info const &iface,
-        std::string_view const server_ip,
-        hybrid_config const &config) noexcept -> result<hybrid_endpoint>
+    auto hybrid_endpoint::create_client(interface_info const &iface, std::string_view const server_ip,
+                                        hybrid_config const &config) noexcept -> result<hybrid_endpoint>
     {
         // phase 1: tcp handshake
         auto peer_result = handshake::run_client(server_ip, config.tcp_port, iface.mac(), config.tcp_timeout);
@@ -96,27 +88,15 @@ namespace l2net
             return std::unexpected{sock_result.error()};
         }
 
-        return hybrid_endpoint{
-            iface,
-            config,
-            *peer_result,
-            std::move(*sock_result)};
+        return hybrid_endpoint{iface, config, *peer_result, std::move(*sock_result)};
     }
 
     auto hybrid_endpoint::build_vlan_frame(std::span<std::uint8_t const> payload) noexcept
         -> result<std::vector<std::uint8_t>>
     {
-        vlan_tci tci{
-            .priority = config_.vlan_priority,
-            .dei = false,
-            .vlan_id = config_.vlan_id};
+        vlan_tci tci{.priority = config_.vlan_priority, .dei = false, .vlan_id = config_.vlan_id};
 
-        return l2net::build_vlan_frame(
-            peer_mac_,
-            interface_.mac(),
-            tci,
-            config_.data_protocol,
-            payload);
+        return l2net::build_vlan_frame(peer_mac_, interface_.mac(), tci, config_.data_protocol, payload);
     }
 
     auto hybrid_endpoint::send_data(std::span<std::uint8_t const> payload) noexcept -> void_result
@@ -138,9 +118,8 @@ namespace l2net
 
     auto hybrid_endpoint::send_data(std::string_view const payload) noexcept -> void_result
     {
-        return send_data(std::span<std::uint8_t const>{
-            reinterpret_cast<std::uint8_t const *>(payload.data()),
-            payload.size()});
+        return send_data(
+            std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const *>(payload.data()), payload.size()});
     }
 
     auto hybrid_endpoint::receive_data() noexcept -> result<data_message>
@@ -190,10 +169,7 @@ namespace l2net
         }
 
         running_.store(true);
-        recv_thread_ = std::thread{[this, cb = std::move(callback)]()
-                                   {
-                                       receiver_loop(cb);
-                                   }};
+        recv_thread_ = std::thread{[this, cb = std::move(callback)]() { receiver_loop(cb); }};
 
         return {};
     }
@@ -207,8 +183,8 @@ namespace l2net
         }
     }
 
-    auto hybrid_endpoint::send_loop(
-        std::function<std::vector<std::uint8_t>()> message_generator) noexcept -> void_result
+    auto hybrid_endpoint::send_loop(std::function<std::vector<std::uint8_t>()> message_generator) noexcept
+        -> void_result
     {
         running_.store(true);
 
@@ -280,10 +256,8 @@ namespace l2net
     namespace handshake
     {
 
-        auto run_server(
-            std::uint16_t const port,
-            mac_address const &local_mac,
-            std::chrono::seconds const timeout) noexcept -> result<mac_address>
+        auto run_server(std::uint16_t const port, mac_address const &local_mac,
+                        std::chrono::seconds const timeout) noexcept -> result<mac_address>
         {
             (void)timeout; // Suppress unused parameter warning
             auto server_result = tcp_socket::create_server(port);
@@ -322,11 +296,8 @@ namespace l2net
             return mac_address{peer_bytes};
         }
 
-        auto run_client(
-            std::string_view const server_ip,
-            std::uint16_t const port,
-            mac_address const &local_mac,
-            std::chrono::seconds const timeout) noexcept -> result<mac_address>
+        auto run_client(std::string_view const server_ip, std::uint16_t const port, mac_address const &local_mac,
+                        std::chrono::seconds const timeout) noexcept -> result<mac_address>
         {
             auto conn_result = tcp_socket::connect(server_ip, port, timeout);
             if (!conn_result.has_value())

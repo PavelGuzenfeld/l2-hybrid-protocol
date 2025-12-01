@@ -52,8 +52,8 @@ int main(int argc, char *argv[])
             { // 14 bytes = Ethernet Header size
                 // Skip header, print payload
                 char *payload = (char *)(buffer.data() + 14);
-                std::cout << "Got " << (len - 14) << " bytes: "
-                          << std::string(payload, std::min(len - 14, 50)) << "..." << std::endl;
+                std::cout << "Got " << (len - 14) << " bytes: " << std::string(payload, std::min(len - 14, 50)) << "..."
+                          << std::endl;
             }
         }
     }

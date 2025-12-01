@@ -3,14 +3,13 @@
 
 #include "l2net/ssh_session.hpp"
 
-#include <fmt/format.h>
-#include <libssh/libssh.h>
-#include <libssh/sftp.h>
-
 #include <algorithm>
 #include <cstring>
 #include <fcntl.h>
+#include <fmt/format.h>
 #include <fstream>
+#include <libssh/libssh.h>
+#include <libssh/sftp.h>
 #include <sys/stat.h>
 
 namespace l2net::ssh
@@ -30,8 +29,7 @@ namespace l2net::ssh
         disconnect();
     }
 
-    session::session(session &&other) noexcept
-        : session_{other.session_}, config_{std::move(other.config_)}
+    session::session(session &&other) noexcept : session_{other.session_}, config_{std::move(other.config_)}
     {
         other.session_ = nullptr;
     }
@@ -136,21 +134,13 @@ namespace l2net::ssh
 
             if (config.private_key_passphrase.empty())
             {
-                rc = ssh_pki_import_privkey_file(
-                    config.private_key_path.c_str(),
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    &private_key);
+                rc = ssh_pki_import_privkey_file(config.private_key_path.c_str(), nullptr, nullptr, nullptr,
+                                                 &private_key);
             }
             else
             {
-                rc = ssh_pki_import_privkey_file(
-                    config.private_key_path.c_str(),
-                    config.private_key_passphrase.c_str(),
-                    nullptr,
-                    nullptr,
-                    &private_key);
+                rc = ssh_pki_import_privkey_file(config.private_key_path.c_str(), config.private_key_passphrase.c_str(),
+                                                 nullptr, nullptr, &private_key);
             }
 
             if (rc == SSH_OK && private_key != nullptr)
@@ -237,9 +227,7 @@ namespace l2net::ssh
         return execute(command, config_.command_timeout);
     }
 
-    auto session::execute(
-        std::string_view command,
-        std::chrono::seconds timeout) -> result<command_result>
+    auto session::execute(std::string_view command, std::chrono::seconds timeout) -> result<command_result>
     {
         auto channel_result = open_channel();
         if (!channel_result.has_value())
@@ -272,16 +260,14 @@ namespace l2net::ssh
             }
 
             // read stdout
-            int nbytes = ssh_channel_read_timeout(
-                channel, buffer.data(), buffer.size(), 0, 100);
+            int nbytes = ssh_channel_read_timeout(channel, buffer.data(), buffer.size(), 0, 100);
             if (nbytes > 0)
             {
                 result.stdout_output.append(buffer.data(), static_cast<std::size_t>(nbytes));
             }
 
             // read stderr
-            nbytes = ssh_channel_read_timeout(
-                channel, buffer.data(), buffer.size(), 1, 100);
+            nbytes = ssh_channel_read_timeout(channel, buffer.data(), buffer.size(), 1, 100);
             if (nbytes > 0)
             {
                 result.stderr_output.append(buffer.data(), static_cast<std::size_t>(nbytes));
@@ -295,9 +281,8 @@ namespace l2net::ssh
         return result;
     }
 
-    auto session::execute_streaming(
-        std::string_view command,
-        std::function<void(std::string_view, bool)> const &output_callback) -> result<int>
+    auto session::execute_streaming(std::string_view command,
+                                    std::function<void(std::string_view, bool)> const &output_callback) -> result<int>
     {
         auto channel_result = open_channel();
         if (!channel_result.has_value())
@@ -319,23 +304,17 @@ namespace l2net::ssh
         while (!ssh_channel_is_eof(channel))
         {
             // read stdout
-            int nbytes = ssh_channel_read_timeout(
-                channel, buffer.data(), buffer.size(), 0, 100);
+            int nbytes = ssh_channel_read_timeout(channel, buffer.data(), buffer.size(), 0, 100);
             if (nbytes > 0)
             {
-                output_callback(
-                    std::string_view{buffer.data(), static_cast<std::size_t>(nbytes)},
-                    false);
+                output_callback(std::string_view{buffer.data(), static_cast<std::size_t>(nbytes)}, false);
             }
 
             // read stderr
-            nbytes = ssh_channel_read_timeout(
-                channel, buffer.data(), buffer.size(), 1, 100);
+            nbytes = ssh_channel_read_timeout(channel, buffer.data(), buffer.size(), 1, 100);
             if (nbytes > 0)
             {
-                output_callback(
-                    std::string_view{buffer.data(), static_cast<std::size_t>(nbytes)},
-                    true);
+                output_callback(std::string_view{buffer.data(), static_cast<std::size_t>(nbytes)}, true);
             }
         }
 
@@ -344,10 +323,8 @@ namespace l2net::ssh
         return exit_code;
     }
 
-    auto session::upload_file(
-        std::filesystem::path const &local_path,
-        std::string_view remote_path,
-        int mode) -> result<void>
+    auto session::upload_file(std::filesystem::path const &local_path, std::string_view remote_path, int mode)
+        -> result<void>
     {
         if (!is_connected())
         {
@@ -373,10 +350,8 @@ namespace l2net::ssh
         return upload_data(data, remote_path, mode);
     }
 
-    auto session::upload_data(
-        std::span<std::uint8_t const> data,
-        std::string_view remote_path,
-        int mode) -> result<void>
+    auto session::upload_data(std::span<std::uint8_t const> data, std::string_view remote_path, int mode)
+        -> result<void>
     {
         if (!is_connected())
         {
@@ -384,10 +359,7 @@ namespace l2net::ssh
         }
 
         // use SCP for file upload
-        ssh_scp scp = ssh_scp_new(
-            session_,
-            SSH_SCP_WRITE,
-            std::string{remote_path}.c_str());
+        ssh_scp scp = ssh_scp_new(session_, SSH_SCP_WRITE, std::string{remote_path}.c_str());
 
         if (scp == nullptr)
         {
@@ -408,11 +380,7 @@ namespace l2net::ssh
             filename = remote_path.substr(pos + 1);
         }
 
-        rc = ssh_scp_push_file(
-            scp,
-            std::string{filename}.c_str(),
-            data.size(),
-            mode);
+        rc = ssh_scp_push_file(scp, std::string{filename}.c_str(), data.size(), mode);
 
         if (rc != SSH_OK)
         {
@@ -434,19 +402,14 @@ namespace l2net::ssh
         return {};
     }
 
-    auto session::download_file(
-        std::string_view remote_path,
-        std::filesystem::path const &local_path) -> result<void>
+    auto session::download_file(std::string_view remote_path, std::filesystem::path const &local_path) -> result<void>
     {
         if (!is_connected())
         {
             return std::unexpected{error_code::session_invalid};
         }
 
-        ssh_scp scp = ssh_scp_new(
-            session_,
-            SSH_SCP_READ,
-            std::string{remote_path}.c_str());
+        ssh_scp scp = ssh_scp_new(session_, SSH_SCP_READ, std::string{remote_path}.c_str());
 
         if (scp == nullptr)
         {
@@ -557,8 +520,7 @@ namespace l2net::ssh
     // session_pool implementation
     // =============================================================================
 
-    session_pool::session_pool(session_config config, std::size_t pool_size)
-        : config_{std::move(config)}
+    session_pool::session_pool(session_config config, std::size_t pool_size) : config_{std::move(config)}
     {
         sessions_.reserve(pool_size);
         in_use_.resize(pool_size, false);
@@ -579,12 +541,18 @@ namespace l2net::ssh
     {
         std::unique_lock lock{mutex_};
 
-        cv_.wait(lock, [this]
+        cv_.wait(lock,
+                 [this]
                  {
-        for (std::size_t i = 0; i < sessions_.size(); ++i) {
-            if (!in_use_[i]) return true;
-        }
-        return false; });
+                     for (std::size_t i = 0; i < sessions_.size(); ++i)
+                     {
+                         if (!in_use_[i])
+                         {
+                             return true;
+                         }
+                     }
+                     return false;
+                 });
 
         for (std::size_t i = 0; i < sessions_.size(); ++i)
         {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.hpp"
+
 #include <optional>
 #include <string>
 #include <vector> // FIXED: Added vector
@@ -25,12 +26,30 @@ namespace l2net
         // FIXED: Made public so other classes can hold it
         interface_info() noexcept = default;
 
-        [[nodiscard]] constexpr auto name() const noexcept -> std::string_view { return name_; }
-        [[nodiscard]] constexpr auto index() const noexcept -> int { return index_; }
-        [[nodiscard]] constexpr auto mac() const noexcept -> mac_address const & { return mac_; }
-        [[nodiscard]] constexpr auto is_up() const noexcept -> bool { return is_up_; }
-        [[nodiscard]] constexpr auto is_loopback() const noexcept -> bool { return is_loopback_; }
-        [[nodiscard]] constexpr auto mtu() const noexcept -> std::uint32_t { return mtu_; }
+        [[nodiscard]] constexpr auto name() const noexcept -> std::string_view
+        {
+            return name_;
+        }
+        [[nodiscard]] constexpr auto index() const noexcept -> int
+        {
+            return index_;
+        }
+        [[nodiscard]] constexpr auto mac() const noexcept -> mac_address const &
+        {
+            return mac_;
+        }
+        [[nodiscard]] constexpr auto is_up() const noexcept -> bool
+        {
+            return is_up_;
+        }
+        [[nodiscard]] constexpr auto is_loopback() const noexcept -> bool
+        {
+            return is_loopback_;
+        }
+        [[nodiscard]] constexpr auto mtu() const noexcept -> std::uint32_t
+        {
+            return mtu_;
+        }
 
         [[nodiscard]] constexpr auto is_valid() const noexcept -> bool
         {

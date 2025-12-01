@@ -7,14 +7,13 @@
 #include "l2net/raw_socket.hpp"
 #include "l2net/vlan.hpp"
 
-#include <fmt/format.h>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <cstring>
+#include <fmt/format.h>
 #include <thread>
 #include <vector>
 
@@ -44,7 +43,7 @@ namespace
         inline constexpr std::uint8_t msg_ready = 0x12;      // ready signal
         inline constexpr std::uint8_t msg_stats = 0x20;      // stats request
         inline constexpr std::uint8_t msg_stats_resp = 0x21; // stats response
-    }
+    } // namespace proto
 
     struct benchmark_stats
     {
@@ -173,18 +172,13 @@ Examples:
         return cfg;
     }
 
-    [[nodiscard]] auto build_frame(
-        l2net::mac_address const &dest,
-        l2net::mac_address const &src,
-        std::span<std::uint8_t const> payload,
-        config const &cfg) -> l2net::result<std::vector<std::uint8_t>>
+    [[nodiscard]] auto build_frame(l2net::mac_address const &dest, l2net::mac_address const &src,
+                                   std::span<std::uint8_t const> payload, config const &cfg)
+        -> l2net::result<std::vector<std::uint8_t>>
     {
         if (cfg.use_vlan)
         {
-            l2net::vlan_tci const tci{
-                .priority = cfg.vlan_priority,
-                .dei = false,
-                .vlan_id = cfg.vlan_id};
+            l2net::vlan_tci const tci{.priority = cfg.vlan_priority, .dei = false, .vlan_id = cfg.vlan_id};
             return l2net::build_vlan_frame(dest, src, tci, proto::eth_p_bench, payload);
         }
         return l2net::build_simple_frame(dest, src, proto::eth_p_bench, payload);
@@ -217,8 +211,7 @@ Examples:
 
         while (g_running.load())
         {
-            auto recv_result = sock.receive_with_timeout(
-                buffer, std::chrono::milliseconds{cfg.timeout_ms});
+            auto recv_result = sock.receive_with_timeout(buffer, std::chrono::milliseconds{cfg.timeout_ms});
 
             if (!recv_result.has_value())
             {
@@ -263,11 +256,7 @@ Examples:
             std::vector<std::uint8_t> response_payload(payload.begin(), payload.end());
             response_payload[0] = proto::msg_pong;
 
-            auto frame_result = build_frame(
-                parser.src_mac(),
-                iface.mac(),
-                response_payload,
-                cfg);
+            auto frame_result = build_frame(parser.src_mac(), iface.mac(), response_payload, cfg);
 
             if (!frame_result.has_value())
             {
@@ -288,8 +277,7 @@ Examples:
         }
 
         stats.end_time = std::chrono::steady_clock::now();
-        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            stats.end_time - stats.start_time);
+        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(stats.end_time - stats.start_time);
 
         fmt::print("\n--- Echo Server Statistics ---\n");
         fmt::print("Packets: {} received, {} sent\n", stats.packets_received, stats.packets_sent);
@@ -329,8 +317,7 @@ Examples:
 
         while (g_running.load())
         {
-            auto recv_result = sock.receive_with_timeout(
-                buffer, std::chrono::milliseconds{cfg.timeout_ms});
+            auto recv_result = sock.receive_with_timeout(buffer, std::chrono::milliseconds{cfg.timeout_ms});
 
             if (!recv_result.has_value())
             {
@@ -338,8 +325,7 @@ Examples:
                 {
                     // periodic stats report
                     auto const now = std::chrono::steady_clock::now();
-                    auto const interval = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        now - last_report);
+                    auto const interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_report);
 
                     if (interval.count() >= 1000 && stats.packets_received > last_packets)
                     {
@@ -376,8 +362,7 @@ Examples:
         }
 
         stats.end_time = std::chrono::steady_clock::now();
-        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            stats.end_time - stats.start_time);
+        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(stats.end_time - stats.start_time);
 
         fmt::print("\n--- Sink Server Statistics ---\n");
         fmt::print("Packets received: {}\n", stats.packets_received);
@@ -469,11 +454,13 @@ Examples:
 
             while (std::chrono::steady_clock::now() < deadline)
             {
-                auto const remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    deadline - std::chrono::steady_clock::now());
+                auto const remaining =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
 
                 if (remaining.count() <= 0)
+                {
                     break;
+                }
 
                 auto recv_result = sock.receive_with_timeout(recv_buffer, remaining);
                 if (!recv_result.has_value())
@@ -489,13 +476,19 @@ Examples:
 
                 l2net::frame_parser parser{std::span{recv_buffer.data(), *recv_result}};
                 if (!parser.is_valid())
+                {
                     continue;
+                }
                 if (parser.ether_type() != proto::eth_p_bench)
+                {
                     continue;
+                }
 
                 auto const resp_payload = parser.payload();
                 if (resp_payload.empty() || resp_payload[0] != proto::msg_pong)
+                {
                     continue;
+                }
 
                 // check sequence number
                 if (resp_payload.size() >= 9)
@@ -503,7 +496,9 @@ Examples:
                     std::uint64_t resp_seq = 0;
                     std::memcpy(&resp_seq, resp_payload.data() + 1, sizeof(resp_seq));
                     if (resp_seq != seq)
+                    {
                         continue;
+                    }
                 }
 
                 auto const latency = recv_time - send_time;
@@ -515,8 +510,8 @@ Examples:
                 if (!cfg.quiet)
                 {
                     auto const latency_us = std::chrono::duration_cast<std::chrono::microseconds>(latency);
-                    fmt::print("{} bytes from {}: seq={} time={} us\n",
-                               resp_payload.size(), parser.src_mac(), seq, latency_us.count());
+                    fmt::print("{} bytes from {}: seq={} time={} us\n", resp_payload.size(), parser.src_mac(), seq,
+                               latency_us.count());
                 }
 
                 got_response = true;
@@ -540,12 +535,11 @@ Examples:
 
         // calculate statistics
         fmt::print("\n--- Ping Statistics ---\n");
-        fmt::print("{} packets transmitted, {} received, {:.1f}% packet loss\n",
-                   stats.packets_sent, stats.packets_received,
-                   stats.packets_sent > 0
-                       ? 100.0 * static_cast<double>(stats.packets_sent - stats.packets_received) /
-                             static_cast<double>(stats.packets_sent)
-                       : 0.0);
+        fmt::print("{} packets transmitted, {} received, {:.1f}% packet loss\n", stats.packets_sent,
+                   stats.packets_received,
+                   stats.packets_sent > 0 ? 100.0 * static_cast<double>(stats.packets_sent - stats.packets_received) /
+                                                static_cast<double>(stats.packets_sent)
+                                          : 0.0);
 
         if (!latencies.empty())
         {
@@ -555,13 +549,12 @@ Examples:
             auto const max_lat = std::chrono::duration_cast<std::chrono::microseconds>(latencies.back());
             auto const avg_lat = std::chrono::duration_cast<std::chrono::microseconds>(
                 stats.total_latency / static_cast<long>(latencies.size()));
-            auto const p50 = std::chrono::duration_cast<std::chrono::microseconds>(
-                latencies[latencies.size() / 2]);
-            auto const p99 = std::chrono::duration_cast<std::chrono::microseconds>(
-                latencies[latencies.size() * 99 / 100]);
+            auto const p50 = std::chrono::duration_cast<std::chrono::microseconds>(latencies[latencies.size() / 2]);
+            auto const p99 =
+                std::chrono::duration_cast<std::chrono::microseconds>(latencies[latencies.size() * 99 / 100]);
 
-            fmt::print("rtt min/avg/max/p50/p99 = {}/{}/{}/{}/{} us\n",
-                       min_lat.count(), avg_lat.count(), max_lat.count(), p50.count(), p99.count());
+            fmt::print("rtt min/avg/max/p50/p99 = {}/{}/{}/{}/{} us\n", min_lat.count(), avg_lat.count(),
+                       max_lat.count(), p50.count(), p99.count());
         }
 
         return stats.packets_received > 0 ? 0 : 1;
@@ -628,17 +621,15 @@ Examples:
             if ((stats.packets_sent % 10000) == 0)
             {
                 auto const now = std::chrono::steady_clock::now();
-                auto const interval = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - last_report);
+                auto const interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_report);
 
                 if (interval.count() >= 1000)
                 {
-                    auto const pps = (stats.packets_sent - last_packets) * 1000 /
-                                     static_cast<std::uint64_t>(interval.count());
-                    auto const mbps = (stats.bytes_sent - last_bytes) * 8 /
-                                      static_cast<std::uint64_t>(interval.count()) / 1000;
-                    fmt::print("Sent {} packets ({} Mbps, {} pps)\n",
-                               stats.packets_sent, mbps, pps);
+                    auto const pps =
+                        (stats.packets_sent - last_packets) * 1000 / static_cast<std::uint64_t>(interval.count());
+                    auto const mbps =
+                        (stats.bytes_sent - last_bytes) * 8 / static_cast<std::uint64_t>(interval.count()) / 1000;
+                    fmt::print("Sent {} packets ({} Mbps, {} pps)\n", stats.packets_sent, mbps, pps);
 
                     last_report = now;
                     last_packets = stats.packets_sent;
@@ -653,8 +644,7 @@ Examples:
         }
 
         stats.end_time = std::chrono::steady_clock::now();
-        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            stats.end_time - stats.start_time);
+        auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(stats.end_time - stats.start_time);
 
         fmt::print("\n--- Flood Statistics ---\n");
         fmt::print("Packets sent: {}\n", stats.packets_sent);

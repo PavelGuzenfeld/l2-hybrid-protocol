@@ -62,7 +62,7 @@ if(LIBSSH_FOUND AND NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
     )
 
     message(STATUS "Building remote benchmark with libssh support")
-    
+
     install(TARGETS l2net_remote_benchmark
         RUNTIME DESTINATION bin
     )

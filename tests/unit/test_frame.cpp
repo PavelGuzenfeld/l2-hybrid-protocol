@@ -4,6 +4,7 @@
 #include "l2net/common.hpp"
 #include "l2net/frame.hpp"
 #include "test_helpers.hpp"
+
 #include <doctest/doctest.h>
 
 using namespace l2net;
@@ -13,11 +14,7 @@ TEST_SUITE("frame_builder")
 {
     TEST_CASE("build minimal frame")
     {
-        auto result = frame_builder{}
-                          .set_dest(TEST_DEST_MAC)
-                          .set_src(TEST_SRC_MAC)
-                          .set_ether_type(0x0800)
-                          .build();
+        auto result = frame_builder{}.set_dest(TEST_DEST_MAC).set_src(TEST_SRC_MAC).set_ether_type(0x0800).build();
 
         REQUIRE(result.has_value());
         CHECK(result->size() == constants::eth_header_size);
@@ -44,10 +41,7 @@ TEST_SUITE("frame_builder")
     TEST_CASE("build_into with sufficient buffer")
     {
         std::array<std::uint8_t, 64> buffer{};
-        auto builder = frame_builder{}
-                           .set_dest(TEST_DEST_MAC)
-                           .set_src(TEST_SRC_MAC)
-                           .set_ether_type(0x0800);
+        auto builder = frame_builder{}.set_dest(TEST_DEST_MAC).set_src(TEST_SRC_MAC).set_ether_type(0x0800);
 
         auto result = builder.build_into(buffer);
         REQUIRE(result.has_value());
@@ -82,9 +76,7 @@ TEST_SUITE("frame_builder")
 
     TEST_CASE("reset clears state")
     {
-        auto builder = frame_builder{}
-                           .set_dest(mac_address::broadcast())
-                           .set_payload("test data");
+        auto builder = frame_builder{}.set_dest(mac_address::broadcast()).set_payload("test data");
         CHECK(builder.required_size() > constants::eth_header_size);
         builder.reset();
         CHECK(builder.required_size() == constants::eth_header_size);
@@ -97,7 +89,8 @@ TEST_SUITE("frame_parser")
     {
         std::vector<std::uint8_t> frame(20);
         std::fill_n(frame.begin(), 6, 0xFF);
-        std::copy(TEST_SRC_MAC.bytes().begin(), TEST_SRC_MAC.bytes().end(), frame.begin() + 6); // wait, mac_address needs begin/end exposed or use data
+        std::copy(TEST_SRC_MAC.bytes().begin(), TEST_SRC_MAC.bytes().end(),
+                  frame.begin() + 6); // wait, mac_address needs begin/end exposed or use data
 
         // Actually let's just use the manual construction to match your specific test case
         // but cleaner
@@ -105,7 +98,7 @@ TEST_SUITE("frame_parser")
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Dest
             0x11, 0x22, 0x33, 0x44, 0x55, 0x66, // Src
             0x08, 0x00,                         // Type
-            'H', 'I'                            // Payload
+            'H',  'I'                           // Payload
         };
 
         // Oops, the vector constructor above created size 20 but init list created new one.
