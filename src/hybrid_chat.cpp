@@ -60,14 +60,14 @@ namespace l2net
         auto peer_result = handshake::run_server(config.tcp_port, iface.mac(), config.tcp_timeout);
         if (!peer_result.has_value())
         {
-            return tl::unexpected{peer_result.error()};
+            return std::unexpected{peer_result.error()};
         }
 
         // phase 2: create raw socket for data plane
         auto sock_result = raw_socket::create(raw_socket::protocol::all);
         if (!sock_result.has_value())
         {
-            return tl::unexpected{sock_result.error()};
+            return std::unexpected{sock_result.error()};
         }
 
         return hybrid_endpoint{
@@ -86,14 +86,14 @@ namespace l2net
         auto peer_result = handshake::run_client(server_ip, config.tcp_port, iface.mac(), config.tcp_timeout);
         if (!peer_result.has_value())
         {
-            return tl::unexpected{peer_result.error()};
+            return std::unexpected{peer_result.error()};
         }
 
         // phase 2: create raw socket for data plane
         auto sock_result = raw_socket::create(raw_socket::protocol::all);
         if (!sock_result.has_value())
         {
-            return tl::unexpected{sock_result.error()};
+            return std::unexpected{sock_result.error()};
         }
 
         return hybrid_endpoint{
@@ -124,13 +124,13 @@ namespace l2net
         auto frame_result = build_vlan_frame(payload);
         if (!frame_result.has_value())
         {
-            return tl::unexpected{frame_result.error()};
+            return std::unexpected{frame_result.error()};
         }
 
         auto send_result = data_socket_.send_raw(*frame_result, interface_);
         if (!send_result.has_value())
         {
-            return tl::unexpected{send_result.error()};
+            return std::unexpected{send_result.error()};
         }
 
         return {};
@@ -150,20 +150,20 @@ namespace l2net
         auto recv_result = data_socket_.receive(buffer);
         if (!recv_result.has_value())
         {
-            return tl::unexpected{recv_result.error()};
+            return std::unexpected{recv_result.error()};
         }
 
         frame_parser parser{std::span{buffer.data(), *recv_result}};
         if (!parser.is_valid())
         {
-            return tl::unexpected{error_code::invalid_frame_size};
+            return std::unexpected{error_code::invalid_frame_size};
         }
 
         // check if it's our protocol (with or without vlan tag)
         if (parser.ether_type() != config_.data_protocol)
         {
             // not our protocol
-            return tl::unexpected{error_code::invalid_frame_size};
+            return std::unexpected{error_code::invalid_frame_size};
         }
 
         data_message msg;
@@ -289,21 +289,21 @@ namespace l2net
             auto server_result = tcp_socket::create_server(port);
             if (!server_result.has_value())
             {
-                return tl::unexpected{server_result.error()};
+                return std::unexpected{server_result.error()};
             }
 
             // TODO: add timeout to accept
             auto client_result = server_result->accept();
             if (!client_result.has_value())
             {
-                return tl::unexpected{client_result.error()};
+                return std::unexpected{client_result.error()};
             }
 
             // send our mac
             auto send_result = client_result->send(local_mac.as_span());
             if (!send_result.has_value())
             {
-                return tl::unexpected{send_result.error()};
+                return std::unexpected{send_result.error()};
             }
 
             // receive peer mac
@@ -311,12 +311,12 @@ namespace l2net
             auto recv_result = client_result->receive(peer_bytes);
             if (!recv_result.has_value())
             {
-                return tl::unexpected{recv_result.error()};
+                return std::unexpected{recv_result.error()};
             }
 
             if (*recv_result != mac_address::size)
             {
-                return tl::unexpected{error_code::handshake_failed};
+                return std::unexpected{error_code::handshake_failed};
             }
 
             return mac_address{peer_bytes};
@@ -331,7 +331,7 @@ namespace l2net
             auto conn_result = tcp_socket::connect(server_ip, port, timeout);
             if (!conn_result.has_value())
             {
-                return tl::unexpected{conn_result.error()};
+                return std::unexpected{conn_result.error()};
             }
 
             // receive server mac
@@ -339,19 +339,19 @@ namespace l2net
             auto recv_result = conn_result->receive(peer_bytes);
             if (!recv_result.has_value())
             {
-                return tl::unexpected{recv_result.error()};
+                return std::unexpected{recv_result.error()};
             }
 
             if (*recv_result != mac_address::size)
             {
-                return tl::unexpected{error_code::handshake_failed};
+                return std::unexpected{error_code::handshake_failed};
             }
 
             // send our mac
             auto send_result = conn_result->send(local_mac.as_span());
             if (!send_result.has_value())
             {
-                return tl::unexpected{send_result.error()};
+                return std::unexpected{send_result.error()};
             }
 
             return mac_address{peer_bytes};

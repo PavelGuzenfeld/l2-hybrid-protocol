@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 
 namespace l2net
 {
@@ -61,9 +62,9 @@ namespace l2net
         {
             if (errno == EPERM || errno == EACCES)
             {
-                return tl::unexpected{error_code::permission_denied};
+                return std::unexpected{error_code::permission_denied};
             }
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         return raw_socket{fd, proto};
@@ -82,7 +83,7 @@ namespace l2net
         auto bind_result = sock_result->bind(iface);
         if (!bind_result.has_value())
         {
-            return tl::unexpected{bind_result.error()};
+            return std::unexpected{bind_result.error()};
         }
 
         return sock_result;
@@ -92,7 +93,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct sockaddr_ll sll{};
@@ -102,7 +103,7 @@ namespace l2net
 
         if (::bind(fd_, reinterpret_cast<struct sockaddr *>(&sll), sizeof(sll)) < 0)
         {
-            return tl::unexpected{error_code::socket_bind_failed};
+            return std::unexpected{error_code::socket_bind_failed};
         }
 
         bound_interface_ = iface;
@@ -113,7 +114,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         if (opts.recv_timeout.has_value())
@@ -124,7 +125,7 @@ namespace l2net
             tv.tv_usec = (ms % 1000) * 1000;
             if (::setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -136,7 +137,7 @@ namespace l2net
             tv.tv_usec = (ms % 1000) * 1000;
             if (::setsockopt(fd_, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -145,7 +146,7 @@ namespace l2net
             int const opt = 1;
             if (::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -154,7 +155,7 @@ namespace l2net
             int const opt = 1;
             if (::setsockopt(fd_, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -163,7 +164,7 @@ namespace l2net
             int const size = *opts.recv_buffer_size;
             if (::setsockopt(fd_, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -172,7 +173,7 @@ namespace l2net
             int const size = *opts.send_buffer_size;
             if (::setsockopt(fd_, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0)
             {
-                return tl::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_bind_failed};
             }
         }
 
@@ -186,7 +187,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct sockaddr_ll addr{};
@@ -200,7 +201,7 @@ namespace l2net
 
         if (sent < 0)
         {
-            return tl::unexpected{error_code::socket_send_failed};
+            return std::unexpected{error_code::socket_send_failed};
         }
 
         return static_cast<std::size_t>(sent);
@@ -212,7 +213,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct sockaddr_ll addr{};
@@ -226,7 +227,7 @@ namespace l2net
 
         if (sent < 0)
         {
-            return tl::unexpected{error_code::socket_send_failed};
+            return std::unexpected{error_code::socket_send_failed};
         }
 
         return static_cast<std::size_t>(sent);
@@ -236,7 +237,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         auto const received = ::recv(fd_, buffer.data(), buffer.size(), 0);
@@ -245,9 +246,9 @@ namespace l2net
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                return tl::unexpected{error_code::timeout};
+                return std::unexpected{error_code::timeout};
             }
-            return tl::unexpected{error_code::socket_recv_failed};
+            return std::unexpected{error_code::socket_recv_failed};
         }
 
         return static_cast<std::size_t>(received);
@@ -259,7 +260,7 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct pollfd pfd{};
@@ -270,11 +271,11 @@ namespace l2net
 
         if (ret < 0)
         {
-            return tl::unexpected{error_code::socket_recv_failed};
+            return std::unexpected{error_code::socket_recv_failed};
         }
         if (ret == 0)
         {
-            return tl::unexpected{error_code::timeout};
+            return std::unexpected{error_code::timeout};
         }
 
         return receive(buffer);
@@ -321,14 +322,14 @@ namespace l2net
         auto const fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         int const opt = 1;
         if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
         {
             ::close(fd);
-            return tl::unexpected{error_code::socket_bind_failed};
+            return std::unexpected{error_code::socket_bind_failed};
         }
 
         struct sockaddr_in addr{};
@@ -339,13 +340,13 @@ namespace l2net
         if (::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) < 0)
         {
             ::close(fd);
-            return tl::unexpected{error_code::socket_bind_failed};
+            return std::unexpected{error_code::socket_bind_failed};
         }
 
         if (::listen(fd, 1) < 0)
         {
             ::close(fd);
-            return tl::unexpected{error_code::socket_bind_failed};
+            return std::unexpected{error_code::socket_bind_failed};
         }
 
         return tcp_socket{fd};
@@ -355,13 +356,13 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         auto const client_fd = ::accept(fd_, nullptr, nullptr);
         if (client_fd < 0)
         {
-            return tl::unexpected{error_code::connection_failed};
+            return std::unexpected{error_code::connection_failed};
         }
 
         return tcp_socket{client_fd};
@@ -375,7 +376,7 @@ namespace l2net
         auto const fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         struct sockaddr_in addr{};
@@ -387,7 +388,7 @@ namespace l2net
         if (::inet_pton(AF_INET, ip_str.c_str(), &addr.sin_addr) != 1)
         {
             ::close(fd);
-            return tl::unexpected{error_code::connection_failed};
+            return std::unexpected{error_code::connection_failed};
         }
 
         auto const deadline = std::chrono::steady_clock::now() + timeout;
@@ -402,20 +403,20 @@ namespace l2net
         }
 
         ::close(fd);
-        return tl::unexpected{error_code::connection_failed};
+        return std::unexpected{error_code::connection_failed};
     }
 
     auto tcp_socket::send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         auto const sent = ::send(fd_, data.data(), data.size(), 0);
         if (sent < 0)
         {
-            return tl::unexpected{error_code::socket_send_failed};
+            return std::unexpected{error_code::socket_send_failed};
         }
 
         return static_cast<std::size_t>(sent);
@@ -425,13 +426,13 @@ namespace l2net
     {
         if (!is_valid())
         {
-            return tl::unexpected{error_code::socket_creation_failed};
+            return std::unexpected{error_code::socket_creation_failed};
         }
 
         auto const received = ::recv(fd_, buffer.data(), buffer.size(), 0);
         if (received < 0)
         {
-            return tl::unexpected{error_code::socket_recv_failed};
+            return std::unexpected{error_code::socket_recv_failed};
         }
 
         return static_cast<std::size_t>(received);
