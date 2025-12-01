@@ -21,11 +21,9 @@ if(NOT DEFINED L2NET_STATIC)
 endif()
 
 # =============================================================================
-# Common settings for any static build (musl or glibc)
+# Common settings
 # =============================================================================
 if(L2NET_USE_MUSL OR L2NET_STATIC)
-    # disable all dependency tests - we just want the libs
-    set(EXPECTED_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(FMT_TEST OFF CACHE BOOL "" FORCE)
     set(FMT_DOC OFF CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
@@ -34,7 +32,7 @@ if(L2NET_USE_MUSL OR L2NET_STATIC)
 endif()
 
 # =============================================================================
-# OPTION 1: Full musl build (Alpine Linux or musl cross-toolchain)
+# OPTION 1: Full musl build
 # =============================================================================
 if(L2NET_USE_MUSL)
     message(STATUS "")
@@ -42,8 +40,6 @@ if(L2NET_USE_MUSL)
     message(STATUS "MUSL BUILD ENABLED")
     message(STATUS "============================================================")
     
-    # check if we're actually using a musl-based system (like Alpine)
-    # or if we have a proper musl C++ toolchain
     execute_process(
         COMMAND ldd --version
         OUTPUT_VARIABLE LDD_OUTPUT
@@ -55,31 +51,19 @@ if(L2NET_USE_MUSL)
     string(FIND "${LDD_OUTPUT}" "musl" MUSL_IN_LDD)
     
     if(MUSL_IN_LDD GREATER -1)
-        message(STATUS "Detected musl-based system (Alpine/Void/etc)")
+        message(STATUS "Detected musl-based system")
         set(MUSL_NATIVE TRUE)
     else()
-        message(WARNING 
-            "L2NET_USE_MUSL=ON but not running on a musl-based system.\n"
-            "musl-gcc on glibc systems doesn't support C++!\n"
-            "\n"
-            "Options:\n"
-            "  1. Use Docker with Alpine Linux (recommended)\n"
-            "  2. Use L2NET_STATIC=ON instead for glibc static builds\n"
-            "  3. Install a musl cross-toolchain with C++ support\n"
-            "\n"
-            "Falling back to L2NET_STATIC=ON...")
+        message(WARNING "Not a musl system. Falling back to L2NET_STATIC=ON...")
         set(L2NET_USE_MUSL OFF)
         set(L2NET_STATIC ON)
     endif()
 endif()
 
-# actually do musl config if we're on a musl system
 if(L2NET_USE_MUSL AND MUSL_NATIVE)
-    # FORCE disable benchmarks - google benchmark doesn't work with musl
     set(L2NET_BUILD_BENCHMARKS OFF CACHE BOOL "Benchmarks disabled for musl" FORCE)
     set(L2NET_BUILD_TESTS OFF CACHE BOOL "Tests disabled for musl" FORCE)
 
-    # create interface target
     add_library(l2net_static_build INTERFACE)
     target_compile_options(l2net_static_build INTERFACE -static -D_GNU_SOURCE)
     target_link_options(l2net_static_build INTERFACE -static -Wl,--gc-sections)
@@ -87,14 +71,11 @@ if(L2NET_USE_MUSL AND MUSL_NATIVE)
 
     message(STATUS "  System:          musl-native")
     message(STATUS "  Static linking:  ON")
-    message(STATUS "  Benchmarks:      OFF (incompatible)")
-    message(STATUS "  Tests:           OFF (incompatible)")
     message(STATUS "============================================================")
-    message(STATUS "")
 endif()
 
 # =============================================================================
-# OPTION 2: Static glibc build (works on Ubuntu/Debian/Fedora/etc)
+# OPTION 2: Static glibc build
 # =============================================================================
 if(L2NET_STATIC AND NOT L2NET_USE_MUSL)
     message(STATUS "")
@@ -102,33 +83,18 @@ if(L2NET_STATIC AND NOT L2NET_USE_MUSL)
     message(STATUS "STATIC GLIBC BUILD ENABLED")
     message(STATUS "============================================================")
     
-    # FORCE disable benchmarks and tests for static builds
     set(L2NET_BUILD_BENCHMARKS OFF CACHE BOOL "Benchmarks disabled for static" FORCE)
     set(L2NET_BUILD_TESTS OFF CACHE BOOL "Tests disabled for static" FORCE)
 
-    # create interface target
     add_library(l2net_static_build INTERFACE)
-    target_link_options(l2net_static_build INTERFACE
-        -static
-        -Wl,--gc-sections
-    )
-    
-    # global static linking
+    target_link_options(l2net_static_build INTERFACE -static -Wl,--gc-sections)
     add_link_options(-static)
 
     message(STATUS "  System:          glibc (static)")
     message(STATUS "  Static linking:  ON")
-    message(STATUS "  Benchmarks:      OFF")
-    message(STATUS "  Tests:           OFF")
-    message(STATUS "  remote_benchmark: SKIPPED (libssh static linking is broken)")
-    message(STATUS "  remote_node:      BUILT (this is what you deploy)")
     message(STATUS "============================================================")
-    message(STATUS "")
 endif()
 
-# =============================================================================
-# Helper function
-# =============================================================================
 function(target_use_static target)
     if(TARGET l2net_static_build)
         target_link_libraries(${target} PRIVATE l2net_static_build)
