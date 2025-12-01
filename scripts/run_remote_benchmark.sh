@@ -25,13 +25,16 @@ print_usage() {
     echo ""
     echo "Required:"
     echo "  -h, --host <ip>         Remote host IP address"
-    echo "  -i, --interface <name>  Network interface (same on local and remote)"
+    echo "  -i, --interface <n>     Network interface (same on local and remote)"
+    echo ""
+    echo "Authentication (one required):"
+    echo "  -p, --password          Prompt for SSH password interactively"
+    echo "  --ssh-pass <pass>       SSH password directly (less secure)"
+    echo "  -k, --key <path>        Path to SSH private key"
     echo ""
     echo "Optional:"
     echo "  -u, --user <username>   SSH username (default: current user)"
-    echo "  -p, --password          Prompt for SSH password"
-    echo "  -k, --key <path>        Path to SSH private key"
-    echo "  -r, --remote-if <name>  Remote interface if different from local"
+    echo "  -r, --remote-if <n>     Remote interface if different from local"
     echo "  -s, --sizes <list>      Payload sizes (default: 64,256,1024,1400,4096,8192)"
     echo "  -n, --packets <n>       Packets per test (default: 10000)"
     echo "  -o, --output <prefix>   Output file prefix"
@@ -41,6 +44,7 @@ print_usage() {
     echo ""
     echo "Examples:"
     echo "  $0 -h 192.168.1.100 -i eth0 -u admin -p"
+    echo "  $0 -h 192.168.1.100 -i eth0 -u admin --ssh-pass 'secret'"
     echo "  $0 -h 10.0.0.50 -i enp0s3 -k ~/.ssh/id_rsa -s 64,1400,8192 -n 50000"
     echo ""
 }
@@ -61,21 +65,29 @@ VLAN_PRIORITY=""
 
 # find the binary
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY="${SCRIPT_DIR}/../build/bin/l2net_remote_benchmark"
-REMOTE_NODE="${SCRIPT_DIR}/../build/bin/l2net_remote_node"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# check for binary in common locations
-if [[ ! -x "$BINARY" ]]; then
-    BINARY="${SCRIPT_DIR}/l2net_remote_benchmark"
-fi
-if [[ ! -x "$BINARY" ]]; then
+# check common build locations in order of likelihood
+BINARY=""
+REMOTE_NODE=""
+
+for build_dir in "build/release/bin" "build/Release/bin" "build/bin" "build" "cmake-build-release/bin" "cmake-build-release"; do
+    if [[ -x "$PROJECT_ROOT/$build_dir/l2net_remote_benchmark" ]]; then
+        BINARY="$PROJECT_ROOT/$build_dir/l2net_remote_benchmark"
+    fi
+    if [[ -x "$PROJECT_ROOT/$build_dir/l2net_remote_node" ]]; then
+        REMOTE_NODE="$PROJECT_ROOT/$build_dir/l2net_remote_node"
+    fi
+    if [[ -n "$BINARY" && -n "$REMOTE_NODE" ]]; then
+        break
+    fi
+done
+
+# fallback to PATH
+if [[ -z "$BINARY" ]]; then
     BINARY="$(which l2net_remote_benchmark 2>/dev/null || true)"
 fi
-
-if [[ ! -x "$REMOTE_NODE" ]]; then
-    REMOTE_NODE="${SCRIPT_DIR}/l2net_remote_node"
-fi
-if [[ ! -x "$REMOTE_NODE" ]]; then
+if [[ -z "$REMOTE_NODE" ]]; then
     REMOTE_NODE="$(which l2net_remote_node 2>/dev/null || true)"
 fi
 
@@ -103,6 +115,10 @@ while [[ $# -gt 0 ]]; do
             read -s SSH_PASS
             echo ""
             shift
+            ;;
+        --ssh-pass)
+            SSH_PASS="$2"
+            shift 2
             ;;
         -k|--key)
             SSH_KEY="$2"
@@ -162,17 +178,27 @@ if [[ -z "$REMOTE_IF" ]]; then
     REMOTE_IF="$LOCAL_IF"
 fi
 
-# validate binaries exist
-if [[ ! -x "$BINARY" ]]; then
-    echo -e "${RED}Error: l2net_remote_benchmark not found${NC}"
-    echo "Please build the project first:"
-    echo "  mkdir -p build && cd build && cmake .. && make"
+# validate authentication
+if [[ -z "$SSH_PASS" && -z "$SSH_KEY" ]]; then
+    echo -e "${RED}Error: authentication required. Use -p, --ssh-pass, or -k${NC}"
+    print_usage
     exit 1
 fi
 
-if [[ ! -x "$REMOTE_NODE" ]]; then
+# validate binaries exist
+if [[ -z "$BINARY" || ! -x "$BINARY" ]]; then
+    echo -e "${RED}Error: l2net_remote_benchmark not found${NC}"
+    echo "Searched in: $PROJECT_ROOT/build/release/bin/"
+    echo "Please build the project first:"
+    echo "  cmake --build --preset release"
+    exit 1
+fi
+
+if [[ -z "$REMOTE_NODE" || ! -x "$REMOTE_NODE" ]]; then
     echo -e "${RED}Error: l2net_remote_node not found${NC}"
-    echo "Please build the project first"
+    echo "Searched in: $PROJECT_ROOT/build/release/bin/"
+    echo "Please build the project first:"
+    echo "  cmake --build --preset release"
     exit 1
 fi
 
@@ -192,6 +218,8 @@ echo "  Local Interface: $LOCAL_IF"
 echo "  Remote Interface: $REMOTE_IF"
 echo "  Payload Sizes:   $PAYLOAD_SIZES"
 echo "  Packets/Test:    $PACKETS"
+echo "  Binary:          $BINARY"
+echo "  Remote Node:     $REMOTE_NODE"
 echo ""
 
 # build command
