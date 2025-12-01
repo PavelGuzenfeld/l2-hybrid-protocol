@@ -9,24 +9,30 @@
 
 FROM alpine:3.22 AS builder
 
-# install build dependencies
 RUN apk add --no-cache \
     build-base \
     cmake \
     ninja \
     git \
     linux-headers \
-    libssh-dev \
-    libssh-static
+    openssl-dev \
+    zlib-dev
 
+# build libssh from source
+WORKDIR /tmp
+RUN git clone https://github.com/libssh/libssh.git && \
+    cd libssh && \
+    cmake -B build \
+    -G Ninja \
+    -DWITH_STATIC_LIB=ON \
+    -DWITH_SHARED_LIB=OFF \
+    -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build && \
+    cmake --install build
 
-
+# now your project build
 WORKDIR /src
-
-# copy source (or mount as volume)
 COPY . .
-
-# configure and build
 RUN cmake -B build/musl-alpine \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
@@ -34,10 +40,8 @@ RUN cmake -B build/musl-alpine \
     -DL2NET_BUILD_TESTS=OFF \
     -DL2NET_BUILD_BENCHMARKS=OFF \
     -DL2NET_BUILD_APPS=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="-static"
-
-RUN cmake --build build/musl-alpine
-
+    -DCMAKE_EXE_LINKER_FLAGS="-static" && \
+    cmake --build build/musl-alpine
 # verify static linking
 RUN file build/musl-alpine/bin/* && \
     echo "---" && \
