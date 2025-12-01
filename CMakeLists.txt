@@ -150,6 +150,7 @@ if(L2NET_BUILD_TESTS)
         tests/unit/test_vlan.cpp
         tests/unit/test_edge_cases.cpp
     )
+    target_include_directories(l2net_unit_tests PRIVATE tests/common/)
     target_link_libraries(l2net_unit_tests
         PRIVATE
             l2net::l2net

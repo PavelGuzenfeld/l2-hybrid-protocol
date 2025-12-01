@@ -1,15 +1,18 @@
-// tests/unit/test_vlan.cpp - VLAN frame tests
-// making sure we can build proper 802.1Q tagged frames
+// tests/unit/test_vlan.cpp
 
 #include "l2net/frame.hpp"
 #include "l2net/vlan.hpp"
+#include "test_helpers.hpp"
 #include <doctest/doctest.h>
+
+using namespace l2net;
+using namespace l2net::testing;
 
 TEST_SUITE("vlan_tci")
 {
     TEST_CASE("default construction")
     {
-        l2net::vlan_tci const tci{};
+        vlan_tci const tci{};
         CHECK(tci.priority == 0);
         CHECK(tci.dei == false);
         CHECK(tci.vlan_id == 0);
@@ -18,13 +21,13 @@ TEST_SUITE("vlan_tci")
 
     TEST_CASE("encode/decode roundtrip")
     {
-        l2net::vlan_tci const original{
+        vlan_tci const original{
             .priority = 7,
             .dei = true,
             .vlan_id = 100};
 
         auto const encoded = original.encode();
-        auto const decoded = l2net::vlan_tci::decode(encoded);
+        auto const decoded = vlan_tci::decode(encoded);
 
         CHECK(decoded.priority == original.priority);
         CHECK(decoded.dei == original.dei);
@@ -33,31 +36,27 @@ TEST_SUITE("vlan_tci")
 
     TEST_CASE("encode specific values")
     {
-        // priority 7 = bits 15-13 = 111
-        // dei = bit 12 = 0
-        // vlan_id 10 = bits 11-0 = 0000 0000 1010
-        // expected: 1110 0000 0000 1010 = 0xE00A
-        l2net::vlan_tci const tci{.priority = 7, .dei = false, .vlan_id = 10};
+        vlan_tci const tci{.priority = 7, .dei = false, .vlan_id = 10};
         CHECK(tci.encode() == 0xE00A);
     }
 
     TEST_CASE("validation - invalid priority")
     {
-        l2net::vlan_tci const tci{.priority = 8, .dei = false, .vlan_id = 10};
+        vlan_tci const tci{.priority = 8, .dei = false, .vlan_id = 10};
         CHECK_FALSE(tci.is_valid());
     }
 
     TEST_CASE("validation - invalid vlan_id")
     {
-        l2net::vlan_tci const tci{.priority = 0, .dei = false, .vlan_id = 4096};
+        vlan_tci const tci{.priority = 0, .dei = false, .vlan_id = 4096};
         CHECK_FALSE(tci.is_valid());
     }
 
     TEST_CASE("comparison")
     {
-        l2net::vlan_tci const a{.priority = 5, .dei = false, .vlan_id = 100};
-        l2net::vlan_tci const b{.priority = 5, .dei = false, .vlan_id = 100};
-        l2net::vlan_tci const c{.priority = 3, .dei = false, .vlan_id = 100};
+        vlan_tci const a{.priority = 5, .dei = false, .vlan_id = 100};
+        vlan_tci const b{.priority = 5, .dei = false, .vlan_id = 100};
+        vlan_tci const c{.priority = 3, .dei = false, .vlan_id = 100};
 
         CHECK(a == b);
         CHECK_FALSE(a == c);
@@ -68,16 +67,16 @@ TEST_SUITE("vlan_header")
 {
     TEST_CASE("size is correct")
     {
-        static_assert(sizeof(l2net::vlan_header) == 4);
+        static_assert(sizeof(vlan_header) == 4);
     }
 
     TEST_CASE("is_8021q detection")
     {
-        l2net::vlan_header header{};
-        header.tpid = l2net::byte_utils::htons_constexpr(0x8100);
+        vlan_header header{};
+        header.tpid = byte_utils::htons_constexpr(0x8100);
         CHECK(header.is_8021q());
 
-        header.tpid = l2net::byte_utils::htons_constexpr(0x0800);
+        header.tpid = byte_utils::htons_constexpr(0x0800);
         CHECK_FALSE(header.is_8021q());
     }
 }
@@ -86,9 +85,9 @@ TEST_SUITE("vlan_frame_builder")
 {
     TEST_CASE("build basic vlan frame")
     {
-        auto result = l2net::vlan_frame_builder{}
-                          .set_dest(l2net::mac_address::broadcast())
-                          .set_src(l2net::mac_address{0x00, 0x11, 0x22, 0x33, 0x44, 0x55})
+        auto result = vlan_frame_builder{}
+                          .set_dest(mac_address::broadcast())
+                          .set_src(TEST_SRC_MAC)
                           .set_vlan_id(10)
                           .set_priority(7)
                           .set_inner_ether_type(0x88B5)
@@ -96,14 +95,17 @@ TEST_SUITE("vlan_frame_builder")
                           .build();
 
         REQUIRE(result.has_value());
-        CHECK(result->size() == l2net::constants::eth_vlan_header_size + 4);
+        CHECK(result->size() == constants::eth_vlan_header_size + 4);
+
+        verify_frame_header(*result, mac_address::broadcast(), TEST_SRC_MAC, 0x88B5);
+        verify_vlan_tag(*result, vlan_tci{.priority = 7, .dei = false, .vlan_id = 10});
     }
 
     TEST_CASE("verify frame structure")
     {
-        auto result = l2net::vlan_frame_builder{}
-                          .set_dest(l2net::mac_address{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF})
-                          .set_src(l2net::mac_address{0x11, 0x22, 0x33, 0x44, 0x55, 0x66})
+        auto result = vlan_frame_builder{}
+                          .set_dest(TEST_DEST_MAC)
+                          .set_src(TEST_SRC_MAC)
                           .set_vlan_id(10)
                           .set_priority(7)
                           .set_inner_ether_type(0x88B5)
@@ -131,47 +133,43 @@ TEST_SUITE("vlan_frame_builder")
 
     TEST_CASE("validation fails for invalid vlan_id")
     {
-        auto builder = l2net::vlan_frame_builder{}
+        auto builder = vlan_frame_builder{}
                            .set_vlan_id(5000); // invalid
 
         auto validation = builder.validate();
         CHECK_FALSE(validation.has_value());
-        CHECK(validation.error() == l2net::error_code::invalid_vlan_id);
+        CHECK(validation.error() == error_code::invalid_vlan_id);
     }
 
     TEST_CASE("validation fails for invalid priority")
     {
-        auto builder = l2net::vlan_frame_builder{}
+        auto builder = vlan_frame_builder{}
                            .set_priority(10); // invalid
 
         auto validation = builder.validate();
         CHECK_FALSE(validation.has_value());
-        CHECK(validation.error() == l2net::error_code::invalid_priority);
+        CHECK(validation.error() == error_code::invalid_priority);
     }
 
     TEST_CASE("build with tci struct")
     {
-        l2net::vlan_tci const tci{.priority = 5, .dei = true, .vlan_id = 200};
+        vlan_tci const tci{.priority = 5, .dei = true, .vlan_id = 200};
 
-        auto result = l2net::vlan_frame_builder{}
-                          .set_dest(l2net::mac_address::broadcast())
-                          .set_src(l2net::mac_address::null())
+        auto result = vlan_frame_builder{}
+                          .set_dest(mac_address::broadcast())
+                          .set_src(mac_address::null())
                           .set_tci(tci)
                           .set_inner_ether_type(0x0800)
                           .build();
 
         REQUIRE(result.has_value());
 
-        // verify with parser
-        l2net::frame_parser parser{*result};
-        CHECK(parser.has_vlan());
-        CHECK(parser.vlan_priority() == 5);
-        CHECK(parser.vlan_id() == 200);
+        verify_vlan_tag(*result, tci);
     }
 
     TEST_CASE("reset clears state")
     {
-        auto builder = l2net::vlan_frame_builder{}
+        auto builder = vlan_frame_builder{}
                            .set_vlan_id(100)
                            .set_priority(7)
                            .set_payload("lots of data here");
@@ -187,27 +185,27 @@ TEST_SUITE("vlan convenience functions")
 {
     TEST_CASE("build_vlan_frame string payload")
     {
-        l2net::vlan_tci const tci{.priority = 7, .dei = false, .vlan_id = 10};
+        vlan_tci const tci{.priority = 7, .dei = false, .vlan_id = 10};
 
-        auto result = l2net::build_vlan_frame(
-            l2net::mac_address::broadcast(),
-            l2net::mac_address::null(),
+        auto result = build_vlan_frame(
+            mac_address::broadcast(),
+            mac_address::null(),
             tci,
             0x88B5,
             "test message");
 
         REQUIRE(result.has_value());
-        CHECK(result->size() == l2net::constants::eth_vlan_header_size + 12);
+        CHECK(result->size() == constants::eth_vlan_header_size + 12);
     }
 
     TEST_CASE("build_vlan_frame binary payload")
     {
-        l2net::vlan_tci const tci{.priority = 3, .dei = false, .vlan_id = 50};
+        vlan_tci const tci{.priority = 3, .dei = false, .vlan_id = 50};
         std::vector<std::uint8_t> const payload{0x01, 0x02, 0x03};
 
-        auto result = l2net::build_vlan_frame(
-            l2net::mac_address::broadcast(),
-            l2net::mac_address::null(),
+        auto result = build_vlan_frame(
+            mac_address::broadcast(),
+            mac_address::null(),
             tci,
             0x0800,
             payload);
@@ -221,59 +219,59 @@ TEST_SUITE("vlan convenience functions")
         std::vector<std::uint8_t> untagged(14);
         untagged[12] = 0x08;
         untagged[13] = 0x00; // IPv4
-        CHECK_FALSE(l2net::is_vlan_tagged(untagged));
+        CHECK_FALSE(is_vlan_tagged(untagged));
 
         // tagged frame
         std::vector<std::uint8_t> tagged(18);
         tagged[12] = 0x81;
         tagged[13] = 0x00; // 802.1Q
-        CHECK(l2net::is_vlan_tagged(tagged));
+        CHECK(is_vlan_tagged(tagged));
     }
 
     TEST_CASE("is_vlan_tagged too small")
     {
         std::vector<std::uint8_t> const tiny(10);
-        CHECK_FALSE(l2net::is_vlan_tagged(tiny));
+        CHECK_FALSE(is_vlan_tagged(tiny));
     }
 
     TEST_CASE("strip_vlan_tag from tagged frame")
     {
         // build a tagged frame
-        l2net::vlan_tci const tci{.priority = 5, .dei = false, .vlan_id = 100};
-        auto tagged = l2net::build_vlan_frame(
-            l2net::mac_address::broadcast(),
-            l2net::mac_address::null(),
+        vlan_tci const tci{.priority = 5, .dei = false, .vlan_id = 100};
+        auto tagged = build_vlan_frame(
+            mac_address::broadcast(),
+            mac_address::null(),
             tci,
             0x0800,
             "payload");
         REQUIRE(tagged.has_value());
 
         // strip the tag
-        auto stripped = l2net::strip_vlan_tag(*tagged);
+        auto stripped = strip_vlan_tag(*tagged);
         REQUIRE(stripped.has_value());
 
         // should be 4 bytes smaller
         CHECK(stripped->size() == tagged->size() - 4);
 
         // should no longer be tagged
-        CHECK_FALSE(l2net::is_vlan_tagged(*stripped));
+        CHECK_FALSE(is_vlan_tagged(*stripped));
 
         // ether type should be preserved
-        l2net::frame_parser parser{*stripped};
+        frame_parser parser{*stripped};
         CHECK(parser.ether_type() == 0x0800);
     }
 
     TEST_CASE("strip_vlan_tag from untagged frame")
     {
-        auto untagged = l2net::build_simple_frame(
-            l2net::mac_address::broadcast(),
-            l2net::mac_address::null(),
+        auto untagged = build_simple_frame(
+            mac_address::broadcast(),
+            mac_address::null(),
             0x0800,
             "test");
         REQUIRE(untagged.has_value());
 
         // should return copy unchanged
-        auto result = l2net::strip_vlan_tag(*untagged);
+        auto result = strip_vlan_tag(*untagged);
         REQUIRE(result.has_value());
         CHECK(result->size() == untagged->size());
     }
@@ -283,20 +281,18 @@ TEST_SUITE("vlan roundtrip")
 {
     TEST_CASE("build and parse vlan frame")
     {
-        l2net::mac_address const dest{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-        l2net::mac_address const src{0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-        l2net::vlan_tci const tci{.priority = 6, .dei = false, .vlan_id = 42};
+        vlan_tci const tci{.priority = 6, .dei = false, .vlan_id = 42};
         std::string_view const payload = "hello vlan world";
 
-        auto frame = l2net::build_vlan_frame(dest, src, tci, 0x88B5, payload);
+        auto frame = build_vlan_frame(TEST_DEST_MAC, TEST_SRC_MAC, tci, 0x88B5, payload);
         REQUIRE(frame.has_value());
 
-        l2net::frame_parser parser{*frame};
+        frame_parser parser{*frame};
 
         CHECK(parser.is_valid());
         CHECK(parser.has_vlan());
-        CHECK(parser.dest_mac() == dest);
-        CHECK(parser.src_mac() == src);
+        CHECK(parser.dest_mac() == TEST_DEST_MAC);
+        CHECK(parser.src_mac() == TEST_SRC_MAC);
         CHECK(parser.vlan_priority() == 6);
         CHECK(parser.vlan_id() == 42);
         CHECK(parser.ether_type() == 0x88B5);
