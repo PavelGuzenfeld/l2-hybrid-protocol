@@ -16,7 +16,8 @@ RUN apk add --no-cache \
     git \
     linux-headers \
     openssl-dev \
-    zlib-dev
+    zlib-dev \    libssh-dev \
+    libssh-static-dev
 
 # build libssh from source
 WORKDIR /tmp
