@@ -172,6 +172,9 @@ if(L2NET_BUILD_APPS)
 
     add_executable(ipc_l2 apps/ipc_l2_app.cpp)
     target_link_libraries(ipc_l2 PRIVATE l2net::l2net l2net_warnings)
+
+    # include the rest of the apps (remote_node, remote_benchmark)
+    add_subdirectory(apps)
 endif()
 
 # =============================================================================
