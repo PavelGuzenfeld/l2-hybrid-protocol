@@ -87,17 +87,52 @@ if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
 endif()
 
 # =============================================================================
+# SSH Support Detection
+# =============================================================================
+# ssh is only available for dynamic builds - static linking libssh+openssl
+# is a mass grave of linker errors that nobody should have to endure
+set(L2NET_HAS_SSH OFF)
+
+if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(LIBSSH QUIET libssh)
+        if(LIBSSH_FOUND)
+            set(L2NET_HAS_SSH ON)
+        endif()
+    endif()
+endif()
+
+if(L2NET_HAS_SSH)
+    message(STATUS "SSH support: ON (libssh ${LIBSSH_VERSION})")
+else()
+    if(L2NET_USE_MUSL OR L2NET_STATIC)
+        message(STATUS "SSH support: OFF (static/musl build - intentionally skipped)")
+    else()
+        message(STATUS "SSH support: OFF (libssh not found)")
+    endif()
+endif()
+
+# =============================================================================
 # Main Library
 # =============================================================================
-add_library(l2net
+
+# base sources - always compiled
+set(L2NET_SOURCES
     src/interface.cpp
     src/raw_socket.cpp
     src/frame.cpp
     src/vlan.cpp
     src/ipc_channel.cpp
     src/hybrid_chat.cpp
-    src/ssh_session.cpp
 )
+
+# conditionally add ssh support
+if(L2NET_HAS_SSH)
+    list(APPEND L2NET_SOURCES src/ssh_session.cpp)
+endif()
+
+add_library(l2net ${L2NET_SOURCES})
 
 target_include_directories(l2net
     PUBLIC
@@ -111,6 +146,16 @@ target_link_libraries(l2net
     PRIVATE
         l2net_warnings
 )
+
+# link libssh if available
+if(L2NET_HAS_SSH)
+    target_include_directories(l2net PRIVATE ${LIBSSH_INCLUDE_DIRS})
+    target_link_libraries(l2net PRIVATE ${LIBSSH_LIBRARIES})
+    target_link_directories(l2net PRIVATE ${LIBSSH_LIBRARY_DIRS})
+    target_compile_definitions(l2net PUBLIC L2NET_HAS_SSH=1)
+else()
+    target_compile_definitions(l2net PUBLIC L2NET_HAS_SSH=0)
+endif()
 
 add_library(l2net::l2net ALIAS l2net)
 
@@ -213,6 +258,7 @@ message(STATUS "  Musl build:           ${L2NET_USE_MUSL}")
 message(STATUS "  Static build:         ${L2NET_STATIC}")
 message(STATUS "  Benchmarks:           ${L2NET_BUILD_BENCHMARKS}")
 message(STATUS "  Apps:                 ${L2NET_BUILD_APPS}")
+message(STATUS "  SSH support:          ${L2NET_HAS_SSH}")
 message(STATUS "------------------------------------------------------------")
 if(L2NET_ENABLE_SANITIZERS)
     message(STATUS "  Test sanitizers:      ON (ASan + UBSan)")

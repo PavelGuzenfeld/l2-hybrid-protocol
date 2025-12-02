@@ -3,6 +3,14 @@
 
 #pragma once
 
+// L2NET_HAS_SSH is defined by CMake based on libssh availability
+// for static/musl builds, this entire header is a no-op
+#ifndef L2NET_HAS_SSH
+#define L2NET_HAS_SSH 0
+#endif
+
+#if L2NET_HAS_SSH
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -283,3 +291,5 @@ namespace l2net::ssh
     };
 
 } // namespace l2net::ssh
+
+#endif // L2NET_HAS_SSH

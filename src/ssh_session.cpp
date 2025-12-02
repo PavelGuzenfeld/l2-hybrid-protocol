@@ -1,6 +1,14 @@
 // ssh_session.cpp - SSH wrapper implementation
 // wrapping libssh because life is pain
 
+// only compile this file if SSH support is enabled
+// CMake sets L2NET_HAS_SSH based on libssh availability
+#ifndef L2NET_HAS_SSH
+#define L2NET_HAS_SSH 0
+#endif
+
+#if L2NET_HAS_SSH
+
 #include "l2net/ssh_session.hpp"
 
 #include <algorithm>
@@ -605,3 +613,5 @@ namespace l2net::ssh
     }
 
 } // namespace l2net::ssh
+
+#endif // L2NET_HAS_SSH
