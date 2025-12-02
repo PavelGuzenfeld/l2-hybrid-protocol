@@ -11,12 +11,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Image
+      - name: Build Docker Image (musl builder)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -29,16 +30,19 @@ jobs:
       - name: Compile & Extract Binaries
         run: |
           mkdir -p build/output
-          # Run the builder container to compile artifacts
-          docker run --rm -v $(pwd)/build/output:/output l2net-builder:latest sh -c "cp /src/build/musl-alpine/bin/* /output/"
+          docker run --rm \
+            --entrypoint /bin/sh \
+            -v "$PWD/build/output:/output" \
+            l2net-builder:latest \
+            -c 'cp /src/build/musl-alpine/bin/* /output/'
 
       - name: Inspect Binaries
         run: |
           ls -lh build/output/
-          file build/output/l2net_unit_tests
+          file build/output/l2net_unit_tests || echo "l2net_unit_tests not found"
 
-      - name: Run Unit Tests
-        # We run tests inside the container to ensure compatibility with the musl binary
-        # Note: Integration tests needing root/raw sockets are skipped here
+      - name: Run Unit Tests (inside musl container)
         run: |
-          docker run --rm l2net-builder:latest /src/build/musl-alpine/bin/l2net_unit_tests
+          docker run --rm \
+            --entrypoint /src/build/musl-alpine/bin/l2net_unit_tests \
+            l2net-builder:latest
