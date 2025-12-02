@@ -9,30 +9,16 @@
 
 FROM alpine:3.22 AS builder
 
+# NOTE: libssh is NOT needed for musl builds - l2net_remote_benchmark
+# is explicitly skipped when L2NET_USE_MUSL=ON (see apps/CMakeLists.txt)
 RUN apk add --no-cache \
     build-base \
     cmake \
     ninja \
     git \
-    linux-headers \
-    openssl-dev \
-    zlib-dev \
-    libssh-dev \
-    libssh-static-dev
+    linux-headers
 
-# build libssh from source
-WORKDIR /tmp
-RUN git clone https://github.com/libssh/libssh.git && \
-    cd libssh && \
-    cmake -B build \
-    -G Ninja \
-    -DWITH_STATIC_LIB=ON \
-    -DWITH_SHARED_LIB=OFF \
-    -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build && \
-    cmake --install build
-
-# now your project build
+# your project build - no libssh needed
 WORKDIR /src
 COPY . .
 RUN cmake -B build/musl-alpine \
@@ -44,6 +30,7 @@ RUN cmake -B build/musl-alpine \
     -DL2NET_BUILD_APPS=ON \
     -DCMAKE_EXE_LINKER_FLAGS="-static" && \
     cmake --build build/musl-alpine
+
 # verify static linking
 RUN file build/musl-alpine/bin/* && \
     echo "---" && \
