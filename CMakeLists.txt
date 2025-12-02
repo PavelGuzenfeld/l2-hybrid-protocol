@@ -251,6 +251,17 @@ install(TARGETS l2net
 )
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+find_program(CLANG_TIDY clang-tidy)
+if(CLANG_TIDY)
+    add_custom_target(tidy
+        COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR}
+            ${CMAKE_SOURCE_DIR}/src/*.cpp
+            ${CMAKE_SOURCE_DIR}/apps/*.cpp
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running clang-tidy"
+    )
+endif()
+
 # =============================================================================
 # summary
 # =============================================================================
