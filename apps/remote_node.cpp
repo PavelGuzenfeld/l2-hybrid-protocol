@@ -421,6 +421,12 @@ Examples:
         auto &sock = *sock_result;
 
         // build payload with sequence number space
+        // belt-and-suspenders: gcc's static analyzer needs local proof
+        if (cfg.payload_size == 0) [[unlikely]]
+        {
+            fmt::print(stderr, "Error: payload size must be at least 1\n");
+            return 1;
+        }
         std::vector<std::uint8_t> payload(cfg.payload_size);
         payload[0] = proto::msg_ping;
 
@@ -601,6 +607,13 @@ Examples:
         auto &sock = *sock_result;
 
         // pre-build frame for maximum performance
+        // pre-build frame for maximum performance
+        // belt-and-suspenders: gcc's static analyzer needs local proof
+        if (cfg.payload_size == 0) [[unlikely]]
+        {
+            fmt::print(stderr, "Error: payload size must be at least 1\n");
+            return 1;
+        }
         std::vector<std::uint8_t> payload(cfg.payload_size, 0x42);
         payload[0] = proto::msg_data;
 
