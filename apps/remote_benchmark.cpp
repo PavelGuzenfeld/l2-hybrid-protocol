@@ -11,7 +11,10 @@
 #include <fmt/chrono.h>
 #include <fmt/color.h>
 #include <fmt/format.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-compare"
 #include <fmt/ranges.h>
+#pragma GCC diagnostic pop
 #include <fstream>
 #include <numeric>
 #include <optional>
@@ -37,17 +40,17 @@ namespace
     struct benchmark_config
     {
         // ssh settings
-        std::string remote_host{};
+        std::string remote_host;
         std::uint16_t ssh_port{22};
-        std::string ssh_username{};
-        std::string ssh_password{};
-        std::string ssh_key_path{};
+        std::string ssh_username;
+        std::string ssh_password;
+        std::string ssh_key_path;
 
         // network settings
-        std::string local_interface{};
-        std::string remote_interface{};
-        std::string local_mac{};  // auto-detected if empty
-        std::string remote_mac{}; // auto-detected if empty
+        std::string local_interface;
+        std::string remote_interface;
+        std::string local_mac;  // auto-detected if empty
+        std::string remote_mac; // auto-detected if empty
 
         // benchmark settings
         std::vector<std::size_t> payload_sizes{64, 128, 256, 512, 1024, 1400, 4096, 8192};
@@ -61,12 +64,12 @@ namespace
         bool use_vlan{false};
 
         // output settings
-        std::string output_file{};
+        std::string output_file;
         bool verbose{false};
         bool json_output{false};
 
         // paths
-        std::filesystem::path local_binary{};
+        std::filesystem::path local_binary;
         std::string remote_binary_path{"/tmp/l2net_remote_node"};
     };
 
@@ -76,44 +79,44 @@ namespace
 
     struct latency_result
     {
-        std::size_t payload_size{};
-        std::uint64_t packets_sent{};
-        std::uint64_t packets_received{};
-        double loss_percent{};
+        std::size_t payload_size;
+        std::uint64_t packets_sent;
+        std::uint64_t packets_received;
+        double loss_percent;
 
         // latency in microseconds
-        double min_us{};
-        double max_us{};
-        double avg_us{};
-        double p50_us{};
-        double p95_us{};
-        double p99_us{};
-        double stddev_us{};
+        double min_us;
+        double max_us;
+        double avg_us;
+        double p50_us;
+        double p95_us;
+        double p99_us;
+        double stddev_us;
     };
 
     struct throughput_result
     {
-        std::size_t payload_size{};
-        std::uint64_t packets_sent{};
-        std::uint64_t bytes_sent{};
-        double duration_ms{};
-        double packets_per_sec{};
-        double mbps{};
-        double gbps{};
+        std::size_t payload_size;
+        std::uint64_t packets_sent;
+        std::uint64_t bytes_sent;
+        double duration_ms;
+        double packets_per_sec;
+        double mbps;
+        double gbps;
     };
 
     struct benchmark_results
     {
-        std::string timestamp{};
-        std::string local_host{};
-        std::string remote_host{};
-        std::string local_interface{};
-        std::string remote_interface{};
-        std::string local_mac{};
-        std::string remote_mac{};
+        std::string timestamp;
+        std::string local_host;
+        std::string remote_host;
+        std::string local_interface;
+        std::string remote_interface;
+        std::string local_mac;
+        std::string remote_mac;
 
-        std::vector<latency_result> latency_results{};
-        std::vector<throughput_result> throughput_results{};
+        std::vector<latency_result> latency_results;
+        std::vector<throughput_result> throughput_results;
     };
 
     // =============================================================================
@@ -339,6 +342,7 @@ namespace
                                               .username = config_.ssh_username,
                                               .password = config_.ssh_password,
                                               .private_key_path = config_.ssh_key_path,
+                                              .private_key_passphrase = {},
                                               .connect_timeout = std::chrono::seconds{30},
                                               .command_timeout = config_.test_timeout,
                                               .strict_host_key_checking = false,

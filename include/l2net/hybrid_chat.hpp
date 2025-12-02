@@ -55,12 +55,12 @@ namespace l2net
         using message_callback = std::function<void(data_message const &)>;
 
     private:
-        interface_info interface_{};
-        hybrid_config config_{};
-        mac_address peer_mac_{};
-        raw_socket data_socket_{};
+        interface_info interface_;
+        hybrid_config config_;
+        mac_address peer_mac_;
+        raw_socket data_socket_;
         std::atomic<bool> running_{false};
-        std::thread recv_thread_{};
+        std::thread recv_thread_;
 
     public:
         hybrid_endpoint() = default;

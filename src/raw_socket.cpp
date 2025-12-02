@@ -107,7 +107,7 @@ namespace l2net
         return {};
     }
 
-    auto raw_socket::set_options(socket_options const &opts) noexcept -> void_result
+    auto raw_socket::set_options(socket_options const &opts) const noexcept -> void_result
     {
         if (!is_valid())
         {
@@ -178,7 +178,7 @@ namespace l2net
     }
 
     auto raw_socket::send_to(std::span<std::uint8_t const> data, interface_info const &iface,
-                             mac_address const &dest_mac) noexcept -> result<std::size_t>
+                             mac_address const &dest_mac) const noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -202,7 +202,7 @@ namespace l2net
         return static_cast<std::size_t>(sent);
     }
 
-    auto raw_socket::send_raw(std::span<std::uint8_t const> data, interface_info const &iface) noexcept
+    auto raw_socket::send_raw(std::span<std::uint8_t const> data, interface_info const &iface) const noexcept
         -> result<std::size_t>
     {
         if (!is_valid())
@@ -227,7 +227,7 @@ namespace l2net
         return static_cast<std::size_t>(sent);
     }
 
-    auto raw_socket::receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>
+    auto raw_socket::receive(std::span<std::uint8_t> buffer) const noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -248,8 +248,8 @@ namespace l2net
         return static_cast<std::size_t>(received);
     }
 
-    auto raw_socket::receive_with_timeout(std::span<std::uint8_t> buffer, std::chrono::milliseconds timeout) noexcept
-        -> result<std::size_t>
+    auto raw_socket::receive_with_timeout(std::span<std::uint8_t> buffer,
+                                          std::chrono::milliseconds timeout) const noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -346,7 +346,7 @@ namespace l2net
         return tcp_socket{fd};
     }
 
-    auto tcp_socket::accept() noexcept -> result<tcp_socket>
+    auto tcp_socket::accept() const noexcept -> result<tcp_socket>
     {
         if (!is_valid())
         {
@@ -398,7 +398,7 @@ namespace l2net
         return std::unexpected{error_code::connection_failed};
     }
 
-    auto tcp_socket::send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>
+    auto tcp_socket::send(std::span<std::uint8_t const> data) const noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {
@@ -414,7 +414,7 @@ namespace l2net
         return static_cast<std::size_t>(sent);
     }
 
-    auto tcp_socket::receive(std::span<std::uint8_t> buffer) noexcept -> result<std::size_t>
+    auto tcp_socket::receive(std::span<std::uint8_t> buffer) const noexcept -> result<std::size_t>
     {
         if (!is_valid())
         {

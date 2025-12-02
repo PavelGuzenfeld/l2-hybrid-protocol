@@ -62,7 +62,7 @@ namespace l2net
         return ipc_channel{std::move(*sock_result), std::move(*iface_result), config};
     }
 
-    auto ipc_channel::send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>
+    auto ipc_channel::send(std::span<std::uint8_t const> data) const noexcept -> result<std::size_t>
     {
         // build frame: header + payload
         // for loopback, MACs don't matter but must be present

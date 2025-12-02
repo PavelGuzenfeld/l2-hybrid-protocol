@@ -79,7 +79,7 @@ namespace bench
                 }
             }
 
-            [[nodiscard]] auto send_broadcast(void const *data, std::size_t len, std::uint16_t port) -> ssize_t
+            [[nodiscard]] auto send_broadcast(void const *data, std::size_t len, std::uint16_t port) const -> ssize_t
             {
                 struct sockaddr_in addr{};
                 addr.sin_family = AF_INET;
