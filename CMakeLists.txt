@@ -20,6 +20,10 @@ option(L2NET_BUILD_BENCHMARKS "Build benchmarks (requires root to run)" ON)
 option(L2NET_BUILD_APPS "Build example applications" ON)
 option(L2NET_ENABLE_SANITIZERS "Enable ASan/UBSan for tests" ON)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 include(FetchContent)
 
 FetchContent_Declare(
