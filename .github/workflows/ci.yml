@@ -7,17 +7,37 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DL2NET_BUILD_TESTS=ON \
+            -DL2NET_BUILD_APPS=OFF \
+            -DL2NET_BUILD_BENCHMARKS=OFF
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run Unit Tests
+        run: ./build/bin/l2net_unit_tests
+
+  build-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Image (musl builder)
+      - name: Build Static Binaries
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -36,12 +56,14 @@ jobs:
             l2net-builder:latest \
             sh -c 'cp /src/build/musl-alpine/bin/* /output/'
 
-      - name: Inspect Binaries
+      - name: Verify Static Linking
         run: |
           ls -lh build/output/
-          file build/output/* || true
+          file build/output/*
 
-      - name: Run Unit Tests
-        run: |
-          docker run --rm l2net-builder:latest \
-            /src/build/musl-alpine/bin/l2net_unit_tests
+      # optional: upload as artifact
+      - name: Upload Binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: l2net-musl-binaries
+          path: build/output/*
