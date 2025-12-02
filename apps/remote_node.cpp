@@ -136,6 +136,11 @@ Examples:
             else if (arg == "--payload-size" && i + 1 < argc)
             {
                 cfg.payload_size = static_cast<std::size_t>(std::stoull(argv[++i]));
+                if (cfg.payload_size == 0)
+                {
+                    fmt::print(stderr, "Error: payload size must be at least 1\n");
+                    return std::nullopt;
+                }
             }
             else if (arg == "--count" && i + 1 < argc)
             {
@@ -167,6 +172,12 @@ Examples:
                 fmt::print(stderr, "Error: unknown argument '{}'\n", arg);
                 return std::nullopt;
             }
+        }
+
+        // final validation
+        if (cfg.payload_size == 0)
+        {
+            cfg.payload_size = 1; // minimum payload size
         }
 
         return cfg;
