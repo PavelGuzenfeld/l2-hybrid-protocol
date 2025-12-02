@@ -23,26 +23,25 @@ jobs:
           context: .
           file: scripts/Dockerfile.musl
           tags: l2net-builder:latest
+          target: builder
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Compile & Extract Binaries
+      - name: Extract Binaries
         run: |
           mkdir -p build/output
           docker run --rm \
-            --entrypoint /bin/sh \
             -v "$PWD/build/output:/output" \
             l2net-builder:latest \
-            -c 'cp /src/build/musl-alpine/bin/* /output/'
+            sh -c 'cp /src/build/musl-alpine/bin/* /output/'
 
       - name: Inspect Binaries
         run: |
           ls -lh build/output/
-          file build/output/l2net_unit_tests || echo "l2net_unit_tests not found"
+          file build/output/* || true
 
-      - name: Run Unit Tests (inside musl container)
+      - name: Run Unit Tests
         run: |
-          docker run --rm \
-            --entrypoint /src/build/musl-alpine/bin/l2net_unit_tests \
-            l2net-builder:latest
+          docker run --rm l2net-builder:latest \
+            /src/build/musl-alpine/bin/l2net_unit_tests
