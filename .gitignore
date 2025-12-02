@@ -44,3 +44,6 @@
 /build/
 /Debug/
 /Release/
+
+#vs code files
+.vscode/
