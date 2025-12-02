@@ -12,9 +12,9 @@ namespace l2net
     class interface_info
     {
     private:
-        std::string name_{};
+        std::string name_;
         int index_{-1};
-        mac_address mac_{};
+        mac_address mac_;
         bool is_up_{false};
         bool is_loopback_{false};
         std::uint32_t mtu_{0};

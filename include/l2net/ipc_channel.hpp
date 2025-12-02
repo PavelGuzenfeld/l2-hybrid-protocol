@@ -25,7 +25,7 @@ namespace l2net
         std::string_view interface_name{"lo"};
         std::uint16_t protocol_id{constants::eth_p_ipc};
         std::size_t recv_buffer_size{70000}; // loopback can handle jumbo frames
-        std::optional<std::chrono::milliseconds> recv_timeout{};
+        std::optional<std::chrono::milliseconds> recv_timeout;
     };
 
     // ============================================================================
@@ -39,10 +39,10 @@ namespace l2net
         using message_callback = std::function<void(std::span<std::uint8_t const>)>;
 
     private:
-        raw_socket socket_{};
-        interface_info interface_{};
-        ipc_config config_{};
-        std::vector<std::uint8_t> recv_buffer_{};
+        raw_socket socket_;
+        interface_info interface_;
+        ipc_config config_;
+        std::vector<std::uint8_t> recv_buffer_;
 
     public:
         ipc_channel() = default;
@@ -58,7 +58,7 @@ namespace l2net
         [[nodiscard]] static auto create(ipc_config const &config = {}) noexcept -> result<ipc_channel>;
 
         // send message
-        [[nodiscard]] auto send(std::span<std::uint8_t const> data) noexcept -> result<std::size_t>;
+        [[nodiscard]] auto send(std::span<std::uint8_t const> data) const noexcept -> result<std::size_t>;
 
         [[nodiscard]] auto send(std::string_view message) noexcept -> result<std::size_t>;
 

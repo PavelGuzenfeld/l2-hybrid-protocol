@@ -42,7 +42,7 @@ namespace l2net
 
         if (!buffer_.empty())
         {
-            std::copy(buffer_.begin(), buffer_.end(), buffer.begin() + constants::eth_header_size);
+            std::ranges::copy(buffer_, buffer.begin() + constants::eth_header_size);
         }
         finalized_ = true;
         return total_size;

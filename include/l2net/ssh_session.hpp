@@ -105,8 +105,8 @@ namespace l2net::ssh
 
     struct command_result
     {
-        std::string stdout_output{};
-        std::string stderr_output{};
+        std::string stdout_output;
+        std::string stderr_output;
         int exit_code{-1};
 
         [[nodiscard]] constexpr auto success() const noexcept -> bool
@@ -121,12 +121,12 @@ namespace l2net::ssh
 
     struct session_config
     {
-        std::string host{};
+        std::string host;
         std::uint16_t port{22};
-        std::string username{};
-        std::string password{};               // password auth
-        std::string private_key_path{};       // key-based auth (optional)
-        std::string private_key_passphrase{}; // passphrase for key (optional)
+        std::string username;
+        std::string password;               // password auth
+        std::string private_key_path;       // key-based auth (optional)
+        std::string private_key_passphrase; // passphrase for key (optional)
         std::chrono::seconds connect_timeout{10};
         std::chrono::seconds command_timeout{60};
         bool strict_host_key_checking{false}; // disable for testing, enable in prod

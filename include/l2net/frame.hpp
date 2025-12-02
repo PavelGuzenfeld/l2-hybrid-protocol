@@ -46,9 +46,9 @@ namespace l2net
     class frame_builder
     {
     private:
-        std::vector<std::uint8_t> buffer_{};
-        mac_address dest_mac_{};
-        mac_address src_mac_{};
+        std::vector<std::uint8_t> buffer_;
+        mac_address dest_mac_;
+        mac_address src_mac_;
         std::uint16_t ether_type_{0};
         bool finalized_{false};
 
@@ -109,7 +109,7 @@ namespace l2net
     class frame_parser
     {
     private:
-        std::span<std::uint8_t const> data_{};
+        std::span<std::uint8_t const> data_;
         bool valid_{false};
         bool has_vlan_tag_{false};
 

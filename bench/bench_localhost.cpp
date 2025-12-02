@@ -49,7 +49,7 @@ namespace bench
                 }
             }
 
-            [[nodiscard]] auto bind(std::uint16_t port) -> bool
+            [[nodiscard]] auto bind(std::uint16_t port) const -> bool
             {
                 struct sockaddr_in addr{};
                 addr.sin_family = AF_INET;
@@ -58,7 +58,7 @@ namespace bench
                 return ::bind(fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0;
             }
 
-            [[nodiscard]] auto send_to(void const *data, std::size_t len, std::uint16_t port) -> ssize_t
+            [[nodiscard]] auto send_to(void const *data, std::size_t len, std::uint16_t port) const -> ssize_t
             {
                 struct sockaddr_in addr{};
                 addr.sin_family = AF_INET;
@@ -67,7 +67,7 @@ namespace bench
                 return ::sendto(fd_, data, len, 0, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
             }
 
-            [[nodiscard]] auto recv(void *data, std::size_t len) -> ssize_t
+            [[nodiscard]] auto recv(void *data, std::size_t len) const -> ssize_t
             {
                 return ::recv(fd_, data, len, 0);
             }

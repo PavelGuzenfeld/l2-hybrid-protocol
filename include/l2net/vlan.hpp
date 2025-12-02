@@ -76,11 +76,11 @@ namespace l2net
     class vlan_frame_builder
     {
     private:
-        mac_address dest_mac_{};
-        mac_address src_mac_{};
-        vlan_tci tci_{};
+        mac_address dest_mac_;
+        mac_address src_mac_;
+        vlan_tci tci_;
         std::uint16_t inner_ether_type_{0};
-        std::vector<std::uint8_t> payload_{};
+        std::vector<std::uint8_t> payload_;
 
     public:
         vlan_frame_builder() = default;
