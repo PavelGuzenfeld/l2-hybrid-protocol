@@ -1,4 +1,13 @@
 repos:
+  - repo: local
+    hooks:
+      - id: clang-tidy
+        name: clang-tidy
+        entry: clang-tidy
+        language: system
+        types_or: [c++, c]
+        args: ["-p=build/release"]
+        require_serial: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -12,4 +21,11 @@ repos:
     hooks:
       - id: clang-format
         args: [--style=file]
+        types_or: [c++, c]
+
+  - repo: http://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-tidy
+        args: [--config-file=.clang-tidy]
         types_or: [c++, c]
