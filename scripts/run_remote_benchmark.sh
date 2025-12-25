@@ -41,12 +41,96 @@ print_usage() {
     echo "  -v, --verbose           Verbose output"
     echo "  --vlan <id>             VLAN ID"
     echo "  --priority <n>          VLAN priority (0-7)"
+    echo "  --skip-sudo-setup       Skip remote sudoers configuration"
     echo ""
     echo "Examples:"
     echo "  $0 -h 192.168.1.100 -i eth0 -u admin -p"
     echo "  $0 -h 192.168.1.100 -i eth0 -u admin --ssh-pass 'secret'"
     echo "  $0 -h 10.0.0.50 -i enp0s3 -k ~/.ssh/id_rsa -s 64,1400,8192 -n 50000"
     echo ""
+}
+
+# run ssh command with proper auth
+# usage: run_ssh "command"
+run_ssh() {
+    local cmd="$1"
+    if [[ -n "$SSH_KEY" ]]; then
+        ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+            "${SSH_USER}@${REMOTE_HOST}" "$cmd"
+    elif [[ -n "$SSH_PASS" ]]; then
+        sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=accept-new \
+            "${SSH_USER}@${REMOTE_HOST}" "$cmd"
+    else
+        echo -e "${RED}Error: no SSH credentials available${NC}"
+        return 1
+    fi
+}
+
+# run ssh command with tty allocation (needed for interactive sudo)
+# usage: run_ssh_tty "command"
+run_ssh_tty() {
+    local cmd="$1"
+    if [[ -n "$SSH_KEY" ]]; then
+        ssh -tt -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new \
+            "${SSH_USER}@${REMOTE_HOST}" "$cmd"
+    elif [[ -n "$SSH_PASS" ]]; then
+        sshpass -p "$SSH_PASS" ssh -tt -o StrictHostKeyChecking=accept-new \
+            "${SSH_USER}@${REMOTE_HOST}" "$cmd"
+    else
+        echo -e "${RED}Error: no SSH credentials available${NC}"
+        return 1
+    fi
+}
+
+# setup sudoers on remote host for passwordless l2net_remote_node execution
+setup_remote_sudo() {
+    echo -e "${CYAN}[*] checking remote sudo configuration...${NC}"
+    
+    local sudoers_line="${SSH_USER} ALL=(ALL) NOPASSWD: /tmp/l2net_remote_node"
+    local sudoers_file="/etc/sudoers.d/l2net"
+    
+    # first, check if the rule already exists and works
+    # we test by checking if sudo -n -l shows our binary (non-interactive sudo list)
+    if run_ssh "sudo -n -l 2>/dev/null | grep -q '/tmp/l2net_remote_node'" 2>/dev/null; then
+        echo -e "${GREEN}[✓] sudoers already configured for /tmp/l2net_remote_node${NC}"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}[!] sudoers rule not found, attempting to configure...${NC}"
+    
+    # check if sudoers.d directory exists
+    if ! run_ssh "test -d /etc/sudoers.d" 2>/dev/null; then
+        echo -e "${RED}[✗] /etc/sudoers.d not found on remote host${NC}"
+        echo -e "${YELLOW}    please manually add to /etc/sudoers:${NC}"
+        echo -e "    ${sudoers_line}"
+        return 1
+    fi
+    
+    # try to create the sudoers file
+    # this requires the user to have sudo access (with password is fine for this one-time setup)
+    echo -e "${CYAN}[*] creating ${sudoers_file} on remote host...${NC}"
+    echo -e "${YELLOW}    (you may be prompted for your sudo password on the remote host)${NC}"
+    
+    # use tty allocation for interactive sudo password prompt
+    # the echo | sudo tee pattern avoids shell escaping nightmares
+    if run_ssh_tty "echo '${sudoers_line}' | sudo tee ${sudoers_file} > /dev/null && sudo chmod 440 ${sudoers_file}"; then
+        echo -e "${GREEN}[✓] sudoers rule created successfully${NC}"
+        
+        # validate it works
+        if run_ssh "sudo -n /tmp/l2net_remote_node --help > /dev/null 2>&1" 2>/dev/null; then
+            echo -e "${GREEN}[✓] verified: sudo -n works for l2net_remote_node${NC}"
+            return 0
+        else
+            # binary might not exist yet, that's fine - the rule is there
+            echo -e "${GREEN}[✓] sudoers rule installed (binary not yet deployed)${NC}"
+            return 0
+        fi
+    else
+        echo -e "${RED}[✗] failed to create sudoers rule${NC}"
+        echo -e "${YELLOW}    please manually run on remote host:${NC}"
+        echo -e "    sudo bash -c \"echo '${sudoers_line}' > ${sudoers_file} && chmod 440 ${sudoers_file}\""
+        return 1
+    fi
 }
 
 # defaults
@@ -62,6 +146,7 @@ OUTPUT_PREFIX=""
 VERBOSE=""
 VLAN_ID=""
 VLAN_PRIORITY=""
+SKIP_SUDO_SETUP=""
 
 # find the binary
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -180,6 +265,10 @@ while [[ $# -gt 0 ]]; do
             VLAN_PRIORITY="$2"
             shift 2
             ;;
+        --skip-sudo-setup)
+            SKIP_SUDO_SETUP="1"
+            shift
+            ;;
         --help)
             print_usage
             exit 0
@@ -250,6 +339,13 @@ if [[ -z "$REMOTE_NODE" || ! -x "$REMOTE_NODE" ]]; then
     exit 1
 fi
 
+# check for sshpass if using password auth
+if [[ -n "$SSH_PASS" ]] && ! command -v sshpass &> /dev/null; then
+    echo -e "${RED}Error: sshpass is required for password authentication${NC}"
+    echo "Install with: apt install sshpass"
+    exit 1
+fi
+
 # check if running as root (required for raw sockets)
 if [[ $EUID -ne 0 ]]; then
     echo -e "${YELLOW}Warning: Not running as root. Raw socket operations require root.${NC}"
@@ -269,6 +365,15 @@ echo "  Packets/Test:     $PACKETS"
 echo "  Binary:           $BINARY"
 echo "  Remote Node:      $REMOTE_NODE"
 echo ""
+
+# setup sudo on remote host (unless skipped)
+if [[ -z "$SKIP_SUDO_SETUP" ]]; then
+    if ! setup_remote_sudo; then
+        echo -e "${RED}Failed to configure remote sudo. Use --skip-sudo-setup to bypass.${NC}"
+        exit 1
+    fi
+    echo ""
+fi
 
 # build command
 CMD="$BINARY"
