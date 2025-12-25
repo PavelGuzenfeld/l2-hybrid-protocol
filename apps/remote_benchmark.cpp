@@ -542,17 +542,22 @@ namespace
         }
 
         // start echo server on remote
-        auto server_cmd = fmt::format("sudo {} echo {} --timeout 30000{} &", config_.remote_binary_path,
-                                      config_.remote_interface, vlan_args);
+        // NOTE: no trailing & here - backgrounding handled by shell command below
+        // NOTE: sudo -n for non-interactive (requires NOPASSWD in sudoers for raw socket ops)
+        auto server_cmd = fmt::format("{} echo {} --timeout 30000{}",
+                                      config_.remote_binary_path,
+                                      config_.remote_interface,
+                                      vlan_args);
 
         if (config_.verbose)
         {
             print_status(fmt::format("starting remote server: {}", server_cmd));
         }
 
-        // use nohup to keep server running
+        // setsid detaches from ssh session, sudo -n = non-interactive mode
+        // the & backgrounds the whole thing, echo $! gives us the pid
         auto start_result =
-            ssh_session_->execute(fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
+            ssh_session_->execute(fmt::format("setsid sudo -n {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
 
         if (!start_result.has_value())
         {
