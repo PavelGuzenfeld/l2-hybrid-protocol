@@ -15,7 +15,12 @@ target_link_libraries(l2net_remote_node
         l2net_warnings
 )
 
-# apply static build settings if enabled
+target_link_options(l2net_remote_node PRIVATE
+    -static
+    -static-libgcc
+    -static-libstdc++
+)
+
 if(TARGET l2net_static_build)
     target_link_libraries(l2net_remote_node PRIVATE l2net_static_build)
 endif()
