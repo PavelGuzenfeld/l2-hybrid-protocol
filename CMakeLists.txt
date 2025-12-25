@@ -86,6 +86,8 @@ if(L2NET_ENABLE_SANITIZERS)
     )
 endif()
 
+# NOTE:
+# It means: only add -static-libstdc++/-static-libgcc for *dynamic* builds.
 if(NOT L2NET_USE_MUSL AND NOT L2NET_STATIC)
     add_link_options(-static-libstdc++ -static-libgcc)
 endif()
@@ -144,9 +146,12 @@ target_include_directories(l2net
         $<INSTALL_INTERFACE:include>
 )
 
+find_package(Threads REQUIRED) # for static linking of pthreads
+
 target_link_libraries(l2net
     PUBLIC
         fmt::fmt
+        Threads::Threads
     PRIVATE
         l2net_warnings
 )
