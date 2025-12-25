@@ -47,3 +47,10 @@
 
 #vs code files
 .vscode/
+
+# Build results
+build/
+install/
+
+# Log files
+log/
