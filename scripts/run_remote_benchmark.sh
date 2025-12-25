@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_remote_benchmark.sh - convenience wrapper for remote benchmarking
-# usage: ./run_remote_benchmark.sh <remote_ip> <interface>
+# usage: ./run_remote_benchmark.sh [options]
 
 set -e
 
@@ -71,24 +71,56 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BINARY=""
 REMOTE_NODE=""
 
-for build_dir in "build/release/bin" "build/Release/bin" "build/bin" "build" "cmake-build-release/bin" "cmake-build-release"; do
-    if [[ -x "$PROJECT_ROOT/$build_dir/l2net_remote_benchmark" ]]; then
-        BINARY="$PROJECT_ROOT/$build_dir/l2net_remote_benchmark"
+SEARCH_DIRS=(
+  # colcon/ament typical
+  "build/l2net/bin"
+  "install/l2net/bin"
+  "install/l2net/lib/l2net"
+
+  # generic "build/*/bin" layout (colcon/other multi-package build trees)
+  "build/*/bin"
+
+  # normal CMake presets / common conventions
+  "build/release/bin"
+  "build/Release/bin"
+  "build/bin"
+  "build"
+  "cmake-build-release/bin"
+  "cmake-build-release"
+)
+
+# helper: check a directory for both binaries
+check_dir_for_bins() {
+    local dir="$1"
+
+    if [[ -x "$dir/l2net_remote_benchmark" && -z "$BINARY" ]]; then
+        BINARY="$dir/l2net_remote_benchmark"
     fi
-    if [[ -x "$PROJECT_ROOT/$build_dir/l2net_remote_node" ]]; then
-        REMOTE_NODE="$PROJECT_ROOT/$build_dir/l2net_remote_node"
+
+    if [[ -x "$dir/l2net_remote_node" && -z "$REMOTE_NODE" ]]; then
+        REMOTE_NODE="$dir/l2net_remote_node"
     fi
-    if [[ -n "$BINARY" && -n "$REMOTE_NODE" ]]; then
-        break
-    fi
+}
+
+# search
+for build_dir in "${SEARCH_DIRS[@]}"; do
+    # Expand globs safely (build/*/bin)
+    for expanded in "$PROJECT_ROOT"/$build_dir; do
+        if [[ -d "$expanded" ]]; then
+            check_dir_for_bins "$expanded"
+        fi
+        if [[ -n "$BINARY" && -n "$REMOTE_NODE" ]]; then
+            break 2
+        fi
+    done
 done
 
 # fallback to PATH
 if [[ -z "$BINARY" ]]; then
-    BINARY="$(which l2net_remote_benchmark 2>/dev/null || true)"
+    BINARY="$(command -v l2net_remote_benchmark 2>/dev/null || true)"
 fi
 if [[ -z "$REMOTE_NODE" ]]; then
-    REMOTE_NODE="$(which l2net_remote_node 2>/dev/null || true)"
+    REMOTE_NODE="$(command -v l2net_remote_node 2>/dev/null || true)"
 fi
 
 # parse arguments
@@ -188,17 +220,33 @@ fi
 # validate binaries exist
 if [[ -z "$BINARY" || ! -x "$BINARY" ]]; then
     echo -e "${RED}Error: l2net_remote_benchmark not found${NC}"
-    echo "Searched in: $PROJECT_ROOT/build/release/bin/"
-    echo "Please build the project first:"
-    echo "  cmake --build --preset release"
+    echo "Searched in:"
+    for build_dir in "${SEARCH_DIRS[@]}"; do
+        echo "  - $PROJECT_ROOT/$build_dir"
+    done
+    echo ""
+    echo "Please build the project first. For plain CMake builds:"
+    echo "  cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release"
+    echo "  cmake --build build/release -j"
+    echo ""
+    echo "For colcon builds:"
+    echo "  colcon build --packages-select l2net --cmake-args -DCMAKE_BUILD_TYPE=Release"
     exit 1
 fi
 
 if [[ -z "$REMOTE_NODE" || ! -x "$REMOTE_NODE" ]]; then
     echo -e "${RED}Error: l2net_remote_node not found${NC}"
-    echo "Searched in: $PROJECT_ROOT/build/release/bin/"
-    echo "Please build the project first:"
-    echo "  cmake --build --preset release"
+    echo "Searched in:"
+    for build_dir in "${SEARCH_DIRS[@]}"; do
+        echo "  - $PROJECT_ROOT/$build_dir"
+    done
+    echo ""
+    echo "Please build the project first. For plain CMake builds:"
+    echo "  cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release"
+    echo "  cmake --build build/release -j"
+    echo ""
+    echo "For colcon builds:"
+    echo "  colcon build --packages-select l2net --cmake-args -DCMAKE_BUILD_TYPE=Release"
     exit 1
 fi
 
@@ -212,14 +260,14 @@ fi
 print_banner
 
 echo -e "${GREEN}Configuration:${NC}"
-echo "  Remote Host:     $REMOTE_HOST"
-echo "  SSH User:        $SSH_USER"
-echo "  Local Interface: $LOCAL_IF"
+echo "  Remote Host:      $REMOTE_HOST"
+echo "  SSH User:         $SSH_USER"
+echo "  Local Interface:  $LOCAL_IF"
 echo "  Remote Interface: $REMOTE_IF"
-echo "  Payload Sizes:   $PAYLOAD_SIZES"
-echo "  Packets/Test:    $PACKETS"
-echo "  Binary:          $BINARY"
-echo "  Remote Node:     $REMOTE_NODE"
+echo "  Payload Sizes:    $PAYLOAD_SIZES"
+echo "  Packets/Test:     $PACKETS"
+echo "  Binary:           $BINARY"
+echo "  Remote Node:      $REMOTE_NODE"
 echo ""
 
 # build command
