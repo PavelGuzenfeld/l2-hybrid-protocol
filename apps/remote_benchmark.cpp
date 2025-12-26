@@ -542,8 +542,8 @@ namespace
         }
 
         // start echo server on remote
+        // NOTE: no sudo here - it's added in the execute call below with -n flag
         // NOTE: no trailing & here - backgrounding handled by shell command below
-        // NOTE: sudo -n for non-interactive (requires NOPASSWD in sudoers for raw socket ops)
         auto server_cmd = fmt::format("{} echo {} --timeout 30000{}",
                                       config_.remote_binary_path,
                                       config_.remote_interface,
@@ -554,7 +554,7 @@ namespace
             print_status(fmt::format("starting remote server: {}", server_cmd));
         }
 
-        // setsid detaches from ssh session, sudo -n = non-interactive mode
+        // setsid detaches from ssh session, sudo -n = non-interactive mode (no password prompt)
         // the & backgrounds the whole thing, echo $! gives us the pid
         auto start_result =
             ssh_session_->execute(fmt::format("setsid sudo -n {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
@@ -643,16 +643,22 @@ namespace
         }
 
         // start sink server on remote
-        auto server_cmd = fmt::format("sudo {} sink {} --timeout 5000{}", config_.remote_binary_path,
-                                      config_.remote_interface, vlan_args);
+        // NOTE: no sudo here - it's added in the execute call below with -n flag
+        // NOTE: no trailing & here - backgrounding handled by shell command below
+        auto server_cmd = fmt::format("{} sink {} --timeout 5000{}",
+                                      config_.remote_binary_path,
+                                      config_.remote_interface,
+                                      vlan_args);
 
         if (config_.verbose)
         {
             print_status(fmt::format("starting remote sink: {}", server_cmd));
         }
 
+        // setsid detaches from ssh session, sudo -n = non-interactive mode (no password prompt)
+        // the & backgrounds the whole thing, echo $! gives us the pid
         auto start_result =
-            ssh_session_->execute(fmt::format("nohup {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
+            ssh_session_->execute(fmt::format("setsid sudo -n {} > /tmp/l2net_server.log 2>&1 & echo $!", server_cmd));
 
         if (!start_result.has_value())
         {
@@ -704,8 +710,11 @@ namespace
 
     auto benchmark_orchestrator::kill_remote_processes() -> void
     {
-        // intentionally ignoring result - cleanup is best-effort
-        (void)ssh_session_->execute("sudo pkill -9 -f l2net_remote_node 2>/dev/null || true");
+        // use sudo -n for non-interactive mode - fails silently if password required
+        // pkill doesn't need sudo if we're killing our own processes, but the l2net_remote_node
+        // runs as root, so we need sudo to kill it
+        // the || true ensures this never fails the calling code
+        (void)ssh_session_->execute("sudo -n pkill -9 -f l2net_remote_node 2>/dev/null || pkill -9 -f l2net_remote_node 2>/dev/null || true");
         std::this_thread::sleep_for(std::chrono::milliseconds{100});
     }
 
