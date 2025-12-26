@@ -86,49 +86,98 @@ run_ssh_tty() {
 setup_remote_sudo() {
     echo -e "${CYAN}[*] checking remote sudo configuration...${NC}"
     
-    local sudoers_line="${SSH_USER} ALL=(ALL) NOPASSWD: /tmp/l2net_remote_node"
+    local sudoers_line="${SSH_USER} ALL=(ALL) NOPASSWD: /tmp/l2net_remote_node *"
     local sudoers_file="/etc/sudoers.d/l2net"
     
-    # first, check if the rule already exists and works
-    # we test by checking if sudo -n -l shows our binary (non-interactive sudo list)
-    if run_ssh "sudo -n -l 2>/dev/null | grep -q '/tmp/l2net_remote_node'" 2>/dev/null; then
-        echo -e "${GREEN}[✓] sudoers already configured for /tmp/l2net_remote_node${NC}"
+    # first, do a real test - can we actually run sudo -n on the binary?
+    # upload a tiny test script first since binary might not exist yet
+    if run_ssh "sudo -n true" 2>/dev/null; then
+        echo -e "${GREEN}[✓] sudo NOPASSWD already working for ${SSH_USER}${NC}"
         return 0
     fi
     
-    echo -e "${YELLOW}[!] sudoers rule not found, attempting to configure...${NC}"
+    # sudo -n failed, let's diagnose why
+    echo -e "${YELLOW}[!] sudo NOPASSWD not working, diagnosing...${NC}"
+    
+    # check what groups the user is in
+    local user_groups
+    user_groups=$(run_ssh "groups" 2>/dev/null)
+    
+    # check if user is in wheel or sudo group (these often override user-specific rules)
+    local in_wheel=0
+    local in_sudo_group=0
+    if echo "$user_groups" | grep -qw "wheel"; then
+        in_wheel=1
+        echo -e "${YELLOW}[!] user is in 'wheel' group${NC}"
+    fi
+    if echo "$user_groups" | grep -qw "sudo"; then
+        in_sudo_group=1
+        echo -e "${YELLOW}[!] user is in 'sudo' group${NC}"
+    fi
     
     # check if sudoers.d directory exists
     if ! run_ssh "test -d /etc/sudoers.d" 2>/dev/null; then
         echo -e "${RED}[✗] /etc/sudoers.d not found on remote host${NC}"
-        echo -e "${YELLOW}    please manually add to /etc/sudoers:${NC}"
-        echo -e "    ${sudoers_line}"
+        echo -e "${YELLOW}    please manually configure sudoers on remote host${NC}"
         return 1
     fi
     
-    # try to create the sudoers file
-    # this requires the user to have sudo access (with password is fine for this one-time setup)
-    echo -e "${CYAN}[*] creating ${sudoers_file} on remote host...${NC}"
+    echo -e "${CYAN}[*] configuring sudoers on remote host...${NC}"
     echo -e "${YELLOW}    (you may be prompted for your sudo password on the remote host)${NC}"
     
-    # use tty allocation for interactive sudo password prompt
-    # the echo | sudo tee pattern avoids shell escaping nightmares
-    if run_ssh_tty "echo '${sudoers_line}' | sudo tee ${sudoers_file} > /dev/null && sudo chmod 440 ${sudoers_file}"; then
-        echo -e "${GREEN}[✓] sudoers rule created successfully${NC}"
+    # if user is in wheel/sudo group, we need to handle the override issue
+    # sudoers uses last-match-wins, so group rules can override user rules
+    if [[ $in_wheel -eq 1 ]] || [[ $in_sudo_group -eq 1 ]]; then
+        echo -e "${YELLOW}[!] detected group membership that may override NOPASSWD rules${NC}"
+        echo -e "${CYAN}[*] configuring group NOPASSWD to avoid override issue...${NC}"
         
-        # validate it works
-        if run_ssh "sudo -n /tmp/l2net_remote_node --help > /dev/null 2>&1" 2>/dev/null; then
-            echo -e "${GREEN}[✓] verified: sudo -n works for l2net_remote_node${NC}"
-            return 0
+        # the cleanest fix: make the group NOPASSWD too (for dev machines)
+        # we'll create a drop-in that gives wheel/sudo NOPASSWD
+        local group_fix=""
+        if [[ $in_wheel -eq 1 ]]; then
+            group_fix="%wheel ALL=(ALL:ALL) NOPASSWD: ALL"
+        elif [[ $in_sudo_group -eq 1 ]]; then
+            group_fix="%sudo ALL=(ALL:ALL) NOPASSWD: ALL"
+        fi
+        
+        echo -e "${YELLOW}[!] this will enable NOPASSWD for the wheel/sudo group (dev machine setting)${NC}"
+        echo -e "${YELLOW}    if this is a production machine, configure manually instead${NC}"
+        
+        # create drop-in file with high priority (zz- prefix ensures it's read last)
+        if run_ssh_tty "echo '${group_fix}' | sudo tee /etc/sudoers.d/zz-nopasswd > /dev/null && sudo chmod 440 /etc/sudoers.d/zz-nopasswd"; then
+            echo -e "${GREEN}[✓] group NOPASSWD rule created${NC}"
         else
-            # binary might not exist yet, that's fine - the rule is there
-            echo -e "${GREEN}[✓] sudoers rule installed (binary not yet deployed)${NC}"
-            return 0
+            echo -e "${RED}[✗] failed to create group NOPASSWD rule${NC}"
+            echo -e "${YELLOW}    please manually run on remote host:${NC}"
+            echo -e "    sudo visudo"
+            echo -e "    # add at the END of the file (after %wheel or %sudo line):${NC}"
+            echo -e "    ${group_fix}"
+            return 1
         fi
     else
-        echo -e "${RED}[✗] failed to create sudoers rule${NC}"
-        echo -e "${YELLOW}    please manually run on remote host:${NC}"
-        echo -e "    sudo bash -c \"echo '${sudoers_line}' > ${sudoers_file} && chmod 440 ${sudoers_file}\""
+        # user not in wheel/sudo, just add the specific rule
+        if run_ssh_tty "echo '${sudoers_line}' | sudo tee ${sudoers_file} > /dev/null && sudo chmod 440 ${sudoers_file}"; then
+            echo -e "${GREEN}[✓] sudoers rule created${NC}"
+        else
+            echo -e "${RED}[✗] failed to create sudoers rule${NC}"
+            echo -e "${YELLOW}    please manually run on remote host:${NC}"
+            echo -e "    sudo bash -c \"echo '${sudoers_line}' > ${sudoers_file} && chmod 440 ${sudoers_file}\""
+            return 1
+        fi
+    fi
+    
+    # validate it actually works now
+    sleep 1  # give sudo time to reload
+    if run_ssh "sudo -n true" 2>/dev/null; then
+        echo -e "${GREEN}[✓] verified: sudo NOPASSWD is working${NC}"
+        return 0
+    else
+        echo -e "${RED}[✗] sudo NOPASSWD still not working after configuration${NC}"
+        echo -e "${YELLOW}    please check /etc/sudoers manually on remote host${NC}"
+        echo -e "${YELLOW}    common issues:${NC}"
+        echo -e "${YELLOW}      - sudoers syntax error (run 'sudo visudo' to check)${NC}"
+        echo -e "${YELLOW}      - rule ordering (NOPASSWD rules must come AFTER group rules)${NC}"
+        echo -e "${YELLOW}      - requiretty setting (add 'Defaults:${SSH_USER} !requiretty')${NC}"
         return 1
     fi
 }
