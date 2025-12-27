@@ -19,6 +19,35 @@
 
 namespace
 {
+    [[nodiscard]] auto send_with_retry(
+        l2net::raw_socket &sock,
+        std::span<const std::uint8_t> frame,
+        l2net::interface_info const &iface,
+        std::uint32_t max_retries = 200,
+        std::chrono::microseconds backoff = std::chrono::microseconds{10}) -> l2net::result<std::size_t>
+    {
+        for (std::uint32_t i = 0; i < max_retries; ++i)
+        {
+            auto send_result = sock.send_raw(frame, iface);
+            if (send_result.has_value())
+            {
+                return send_result;
+            }
+
+            // NOTE:
+            // send_raw() currently returns only l2net::error_code,
+            // so we don't know whether this is ENOBUFS/EAGAIN.
+            // In practice, send failures in flood mode are almost always transient,
+            // so we treat *all* send failures as retryable here.
+            //
+            // If you expose errno later, make this conditional:
+            // retry only on ENOBUFS/EAGAIN/EWOULDBLOCK, otherwise fail.
+            std::this_thread::sleep_for(backoff);
+        }
+
+        // return the last failure
+        return sock.send_raw(frame, iface);
+    }
 
     std::atomic<bool> g_running{true};
 
@@ -455,7 +484,7 @@ Examples:
 
             auto const send_time = std::chrono::steady_clock::now();
 
-            auto send_result = sock.send_raw(*frame_result, iface);
+            auto send_result = send_with_retry(sock, *frame_result, iface);
             if (!send_result.has_value())
             {
                 fmt::print(stderr, "Send error: {}\n", send_result.error());
