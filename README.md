@@ -24,7 +24,7 @@ High-performance Layer 2 raw socket networking library for Linux.
 - Root privileges for raw socket operations
 
 Optional:
-- libssh-dev (for remote benchmarking)
+- libssl-dev (for SSH support - libssh is fetched automatically)
 - Docker (for musl static builds)
 
 ## Build
@@ -49,8 +49,25 @@ cmake --build --preset release
 | `L2NET_BUILD_BENCHMARKS` | ON | Build benchmarks |
 | `L2NET_BUILD_APPS` | ON | Build example applications |
 | `L2NET_ENABLE_SANITIZERS` | ON | Enable ASan/UBSan for tests |
+| `L2NET_FETCH_LIBSSH` | ON | Fetch and build libssh (requires libssl-dev) |
 | `L2NET_USE_MUSL` | OFF | Build with musl libc (requires musl system) |
 | `L2NET_STATIC` | OFF | Build fully static binaries with glibc |
+
+### SSH Support
+
+SSH support (for remote benchmarking) requires OpenSSL development headers. libssh is fetched and built automatically.
+
+```bash
+# Debian/Ubuntu
+apt install libssl-dev
+
+# Alpine
+apk add openssl-dev
+
+# Or use system libssh instead of fetching
+apt install libssh-dev
+cmake -B build -DL2NET_FETCH_LIBSSH=OFF
+```
 
 ### Static Builds
 
@@ -88,6 +105,7 @@ sudo ./build/release/bin/l2net_integration_tests
 sudo ./build/release/bin/l2net_benchmarks
 
 # Remote benchmarks (requires SSH access to remote host)
+# The script automatically configures sudoers on the remote host
 sudo ./scripts/run_remote_benchmark.sh \
     -h 192.168.1.100 \
     -i eth0 \
