@@ -115,14 +115,14 @@ sudo ./scripts/run_remote_benchmark.sh \
 
 ## Performance Results
 
-Comparison between `l2net` (Raw L2) and standard `SOCK_DGRAM` (UDP).
+### Loopback Performance
+
+Comparison between `l2net` (Raw L2) and standard `SOCK_DGRAM` (UDP) on loopback interface.
 
 **Test Environment:**
 - **CPU:** 12th Gen Intel Core i7-12700H (20 vCPUs)
 - **OS:** Linux 6.6 (WSL2 / Microsoft Hypervisor)
 - **Memory:** 32 GB
-
-### Throughput Comparison
 
 | Payload Size | L2Net (Raw) | UDP (Standard) | Improvement |
 |:-------------|:-----------:|:--------------:|:-----------:|
@@ -130,18 +130,49 @@ Comparison between `l2net` (Raw L2) and standard `SOCK_DGRAM` (UDP).
 | Large (1400 B) | **2.19 Gi/s** | 0.95 Gi/s | **2.30x** |
 | Jumbo (8000 B) | **8.01 Gi/s** | 4.54 Gi/s | **1.76x** |
 
-### Latency & Overhead
-
 | Metric | L2Net (Raw) | UDP (Standard) | Note |
 |:-------|:-----------:|:--------------:|:-----|
 | Roundtrip Latency | 990 ns | 936 ns | Comparable (Loopback) |
 | Socket Creation | **16,244 µs** | 1.2 µs | Raw sockets are expensive to create |
 
+### Remote Network Performance
+
+Real network benchmarks between NVIDIA Jetson Xavier and Raspberry Pi over Ethernet and WiFi.
+
+**Test Environment:**
+- **Local:** NVIDIA Jetson Xavier (ARM64)
+- **Remote (LAN):** Raspberry Pi via 100Mbps Ethernet
+- **Remote (WiFi):** Raspberry Pi via WiFi
+- **Packets per test:** 10,000
+
+#### Latency (Round-Trip)
+
+| Payload | Pi (LAN) | Pi (WiFi) | Notes |
+|:--------|:-----------:|:----:|:------|
+| 64 B    | 377 µs (p99: 419 µs) | 377 µs (p99: 428 µs) | Near-identical |
+| 256 B   | 382 µs (p99: 426 µs) | 385 µs (p99: 430 µs) | |
+| 512 B   | 390 µs (p99: 428 µs) | 392 µs (p99: 431 µs) | |
+| 1024 B  | 417 µs (p99: 484 µs) | 413 µs (p99: 467 µs) | |
+| 1400 B  | 429 µs (p99: 474 µs) | 431 µs (p99: 466 µs) | |
+
+#### Throughput
+
+| Payload | Pi (LAN) | Pi (WiFi) |
+|:--------|:-----------:|:----:|
+| 64 B    | 49 Mbps (78k pps) | 48 Mbps (78k pps) |
+| 256 B   | 117 Mbps (54k pps) | 181 Mbps (84k pps) |
+| 512 B   | 350 Mbps (83k pps) | 328 Mbps (78k pps) |
+| 1024 B  | 437 Mbps (52k pps) | 638 Mbps (76k pps) |
+| 1400 B  | 604 Mbps (53k pps) | 919 Mbps (81k pps) |
+
 ### Key Findings
 
-1. **Massive Throughput Gains:** Bypassing the kernel stack yields a **3.5x speedup** for small packets where header processing dominates CPU time.
+1. **Massive Loopback Throughput:** Bypassing the kernel stack yields **3.5x speedup** for small packets where header processing dominates CPU time.
 2. **Jumbo Frame Saturation:** With 8KB jumbo frames, the library achieves **8.0 Gi/s**, nearly saturating a theoretical 10Gb link.
-3. **Initialization Cost:** Creating a raw socket takes ~16ms vs ~1µs for UDP. **Design Tip:** Initialize sockets at startup, never per-packet.
+3. **Consistent Remote Latency:** ~380-430 µs average RTT with tight p99 (~10-15% above average).
+4. **Zero Packet Loss:** All remote tests completed with 0% loss.
+5. **WiFi vs 100Mbps Ethernet:** Pi WiFi outperformed 100Mbps wired link at larger payloads (919 vs 604 Mbps).
+6. **Initialization Cost:** Creating a raw socket takes ~16ms vs ~1µs for UDP. **Design Tip:** Initialize sockets at startup, never per-packet.
 
 ## Applications
 
