@@ -35,7 +35,8 @@ print_usage() {
     echo "Optional:"
     echo "  -u, --user <username>   SSH username (default: current user)"
     echo "  -r, --remote-if <n>     Remote interface if different from local"
-    echo "  -s, --sizes <list>      Payload sizes (default: 64,256,1024,1400,4096,8192)"
+    echo "  -s, --sizes <list>      Payload sizes (default: 64,256,512,1024,1400)"
+    echo "  --jumbo                 Use jumbo frame sizes (requires MTU 9000)"
     echo "  -n, --packets <n>       Packets per test (default: 10000)"
     echo "  -o, --output <prefix>   Output file prefix"
     echo "  -v, --verbose           Verbose output"
@@ -85,6 +86,12 @@ run_ssh_tty() {
 # setup sudoers on remote host for passwordless l2net_remote_node execution
 setup_remote_sudo() {
     echo -e "${CYAN}[*] checking remote sudo configuration...${NC}"
+    
+    # first, verify SSH connection actually works
+    if ! run_ssh "echo ok" >/dev/null 2>&1; then
+        echo -e "${RED}[✗] SSH connection failed - check password/key and try again${NC}"
+        return 1
+    fi
     
     local sudoers_line="${SSH_USER} ALL=(ALL) NOPASSWD: /tmp/l2net_remote_node *"
     local sudoers_file="/etc/sudoers.d/l2net"
@@ -189,7 +196,7 @@ REMOTE_IF=""
 SSH_USER="${USER}"
 SSH_PASS=""
 SSH_KEY=""
-PAYLOAD_SIZES="64,256,1024,1400,4096,8192"
+PAYLOAD_SIZES="64,256,512,1024,1400"
 PACKETS="10000"
 OUTPUT_PREFIX=""
 VERBOSE=""
@@ -316,6 +323,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-sudo-setup)
             SKIP_SUDO_SETUP="1"
+            shift
+            ;;
+        --jumbo)
+            PAYLOAD_SIZES="64,256,512,1024,1400,4096,8192"
+            echo -e "${YELLOW}[!] jumbo frame mode - ensure MTU >= 9000 on both ends${NC}"
             shift
             ;;
         --help)
