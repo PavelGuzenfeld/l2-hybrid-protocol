@@ -1,295 +1,177 @@
-// ssh_session.hpp - SSH wrapper for remote benchmark deployment
-// because testing on localhost is basically cheating
+// ssh_session.hpp - SSH session management for remote operations
+// uses SFTP for file transfer (libssh deprecated SCP in 0.10.x)
 
 #pragma once
 
-// L2NET_HAS_SSH is defined by CMake based on libssh availability
-// for static/musl builds, this entire header is a no-op
-#ifndef L2NET_HAS_SSH
-#define L2NET_HAS_SSH 0
-#endif
-
-#if L2NET_HAS_SSH
-
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <functional>
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
-#include <vector>
-
-// forward declare libssh types so we don't pollute everyone's namespace
-// with that C garbage
-struct ssh_session_struct;
-struct ssh_channel_struct;
-struct ssh_scp_struct;
-struct sftp_session_struct;
+#include <system_error>
 
 namespace l2net::ssh
 {
 
     // =============================================================================
-    // error handling - because ssh has 47 ways to fail
+    // error codes
     // =============================================================================
 
-    enum class error_code : std::uint8_t
+    enum class error
     {
         success = 0,
+        not_connected,
         connection_failed,
         authentication_failed,
         channel_open_failed,
-        command_failed,
+        channel_exec_failed,
+        sftp_init_failed,
+        sftp_open_failed,
+        sftp_write_failed,
+        sftp_read_failed,
+        sftp_stat_failed,
+        sftp_remove_failed,
+        file_open_failed,
+        file_read_failed,
+        file_write_failed,
+        timeout,
+        host_key_verification_failed,
+
+        // legacy SCP errors - DEPRECATED, do not use in new code
+        // kept only for ABI compatibility
         scp_init_failed,
         scp_push_failed,
+        scp_pull_failed,
+        scp_write_failed,
         scp_read_failed,
-        file_not_found,
-        permission_denied,
-        timeout,
-        host_key_failed,
-        session_invalid,
-        sftp_init_failed,
-        unknown_error
     };
 
-    [[nodiscard]] constexpr auto to_string(error_code const ec) noexcept -> std::string_view
-    {
-        switch (ec)
-        {
-        case error_code::success:
-            return "success";
-        case error_code::connection_failed:
-            return "connection failed";
-        case error_code::authentication_failed:
-            return "authentication failed";
-        case error_code::channel_open_failed:
-            return "channel open failed";
-        case error_code::command_failed:
-            return "command execution failed";
-        case error_code::scp_init_failed:
-            return "scp initialization failed";
-        case error_code::scp_push_failed:
-            return "scp push failed";
-        case error_code::scp_read_failed:
-            return "scp read failed";
-        case error_code::file_not_found:
-            return "file not found";
-        case error_code::permission_denied:
-            return "permission denied";
-        case error_code::timeout:
-            return "operation timeout";
-        case error_code::host_key_failed:
-            return "host key verification failed";
-        case error_code::session_invalid:
-            return "session invalid or not connected";
-        case error_code::sftp_init_failed:
-            return "sftp initialization failed";
-        case error_code::unknown_error:
-            return "unknown error";
-        }
-        return "unknown error";
-    }
+    [[nodiscard]] auto make_error_code(error e) noexcept -> std::error_code;
 
-    template <typename T>
-    using result = std::expected<T, error_code>;
+    /// @brief Convert error to human-readable string
+    [[nodiscard]] auto to_string(error e) -> std::string;
+
+} // namespace l2net::ssh
+
+// enable std::error_code integration
+template <>
+struct std::is_error_code_enum<l2net::ssh::error> : std::true_type
+{
+};
+
+namespace l2net::ssh
+{
 
     // =============================================================================
-    // command result - stdout, stderr, and exit code
+    // result type alias
+    // =============================================================================
+
+    template <typename T>
+    using result = std::expected<T, error>;
+
+    // =============================================================================
+    // session configuration
+    // =============================================================================
+
+    struct session_config
+    {
+        std::string host;
+        int port{22};
+        std::string username;
+        std::string password;                   // optional, prefer key auth
+        std::filesystem::path private_key_path; // optional, uses default if empty
+        std::string private_key_passphrase;     // optional
+        std::chrono::seconds connect_timeout{30};
+        std::chrono::seconds command_timeout{60};
+        bool strict_host_key_checking{false}; // set true for production
+        int verbosity{0};                     // 0=quiet, 1+=verbose
+    };
+
+    // =============================================================================
+    // command result
     // =============================================================================
 
     struct command_result
     {
         std::string stdout_output;
         std::string stderr_output;
-        int exit_code{-1};
+        int exit_code{0};
 
-        [[nodiscard]] constexpr auto success() const noexcept -> bool
-        {
-            return exit_code == 0;
-        }
+        [[nodiscard]] auto success() const noexcept -> bool { return exit_code == 0; }
     };
 
     // =============================================================================
-    // ssh session configuration
-    // =============================================================================
-
-    struct session_config
-    {
-        std::string host;
-        std::uint16_t port{22};
-        std::string username;
-        std::string password;               // password auth
-        std::string private_key_path;       // key-based auth (optional)
-        std::string private_key_passphrase; // passphrase for key (optional)
-        std::chrono::seconds connect_timeout{10};
-        std::chrono::seconds command_timeout{60};
-        bool strict_host_key_checking{false}; // disable for testing, enable in prod
-        int verbosity{0};                     // 0-4, higher = more spam
-    };
-
-    // =============================================================================
-    // ssh session - the actual workhorse
+    // SSH session
     // =============================================================================
 
     class session
     {
     public:
-        // rule of 5 because we manage raw ssh handles
-        session() = default;
+        session();
         ~session();
 
+        // move-only type
         session(session const &) = delete;
         auto operator=(session const &) -> session & = delete;
+        session(session &&) noexcept;
+        auto operator=(session &&) noexcept -> session &;
 
-        session(session &&other) noexcept;
-        auto operator=(session &&other) noexcept -> session &;
+        // -------------------------------------------------------------------------
+        // connection management
+        // -------------------------------------------------------------------------
 
-        // factory method - because constructors can't return errors elegantly
         [[nodiscard]] static auto connect(session_config const &config) -> result<session>;
 
-        // connection management
+        void disconnect();
+
         [[nodiscard]] auto is_connected() const noexcept -> bool;
-        auto disconnect() -> void;
+        [[nodiscard]] auto host() const noexcept -> std::string_view;
+        [[nodiscard]] auto user() const noexcept -> std::string_view;
+        [[nodiscard]] auto port() const noexcept -> int;
 
+        // -------------------------------------------------------------------------
         // command execution
+        // -------------------------------------------------------------------------
+
         [[nodiscard]] auto execute(std::string_view command) -> result<command_result>;
-        [[nodiscard]] auto execute(std::string_view command, std::chrono::seconds timeout) -> result<command_result>;
+        [[nodiscard]] auto execute_background(std::string_view command) -> result<void>;
 
-        // execute with real-time output streaming
-        [[nodiscard]] auto
-        execute_streaming(std::string_view command,
-                          std::function<void(std::string_view, bool)> const &output_callback // (data, is_stderr)
-                          ) -> result<int>;                                                  // returns exit code
+        // -------------------------------------------------------------------------
+        // file transfer (SFTP)
+        // -------------------------------------------------------------------------
 
-        // file transfer
-        [[nodiscard]] auto upload_file(std::filesystem::path const &local_path, std::string_view remote_path,
-                                       int mode = 0755) -> result<void>;
+        [[nodiscard]] auto upload_file(std::filesystem::path const &local_path,
+                                       std::string_view remote_path,
+                                       int mode = 0644) -> result<void>;
 
-        [[nodiscard]] auto download_file(std::string_view remote_path, std::filesystem::path const &local_path)
-            -> result<void>;
+        [[nodiscard]] auto upload_data(std::span<std::uint8_t const> data,
+                                       std::string_view remote_path,
+                                       int mode = 0644) -> result<void>;
 
-        [[nodiscard]] auto upload_data(std::span<std::uint8_t const> data, std::string_view remote_path,
-                                       int mode = 0755) -> result<void>;
+        [[nodiscard]] auto download_file(std::string_view remote_path,
+                                         std::filesystem::path const &local_path) -> result<void>;
 
-        // convenience methods
-        [[nodiscard]] auto file_exists(std::string_view remote_path) -> result<bool>;
-        [[nodiscard]] auto make_directory(std::string_view remote_path) -> result<void>;
         [[nodiscard]] auto remove_file(std::string_view remote_path) -> result<void>;
+
+        // -------------------------------------------------------------------------
+        // utility functions
+        // -------------------------------------------------------------------------
+
+        [[nodiscard]] auto get_remote_mac(std::string_view interface) -> result<std::string>;
+        [[nodiscard]] auto get_remote_hostname() -> result<std::string>;
+        [[nodiscard]] auto get_remote_mtu(std::string_view interface) -> result<int>;
         [[nodiscard]] auto get_remote_arch() -> result<std::string>;
-
-        // get last error message from libssh
-        [[nodiscard]] auto last_error_message() const -> std::string;
-
-        // accessors
-        [[nodiscard]] auto config() const noexcept -> session_config const &
-        {
-            return config_;
-        }
+        [[nodiscard]] auto check_remote_binary(std::string_view binary_path) -> result<bool>;
+        [[nodiscard]] auto kill_remote_process(std::string_view process_pattern) -> result<void>;
 
     private:
-        explicit session(ssh_session_struct *raw_session, session_config config);
+        class impl;
+        std::unique_ptr<impl> impl_;
 
-        [[nodiscard]] auto open_channel() -> result<ssh_channel_struct *>;
-        auto close_channel(ssh_channel_struct *channel) -> void;
-
-        ssh_session_struct *session_{nullptr};
-        session_config config_{};
-    };
-
-    // =============================================================================
-    // ssh session pool - for when you need multiple concurrent operations
-    // =============================================================================
-
-    class session_pool
-    {
-    public:
-        explicit session_pool(session_config config, std::size_t pool_size = 4);
-        ~session_pool();
-
-        session_pool(session_pool const &) = delete;
-        auto operator=(session_pool const &) -> session_pool & = delete;
-        session_pool(session_pool &&) = delete;
-        auto operator=(session_pool &&) -> session_pool & = delete;
-
-        // acquire a session from the pool (blocks if none available)
-        [[nodiscard]] auto acquire() -> result<session *>;
-        auto release(session *sess) -> void;
-
-        // RAII handle for automatic release
-        class scoped_session
-        {
-        public:
-            scoped_session(session_pool &pool, session *sess) : pool_{&pool}, session_{sess}
-            {
-            }
-            ~scoped_session()
-            {
-                if (session_)
-                {
-                    pool_->release(session_);
-                }
-            }
-
-            scoped_session(scoped_session const &) = delete;
-            auto operator=(scoped_session const &) -> scoped_session & = delete;
-
-            scoped_session(scoped_session &&other) noexcept : pool_{other.pool_}, session_{other.session_}
-            {
-                other.session_ = nullptr;
-            }
-            auto operator=(scoped_session &&other) noexcept -> scoped_session &
-            {
-                if (this != &other)
-                {
-                    if (session_)
-                    {
-                        pool_->release(session_);
-                    }
-                    pool_ = other.pool_;
-                    session_ = other.session_;
-                    other.session_ = nullptr;
-                }
-                return *this;
-            }
-
-            [[nodiscard]] auto get() const noexcept -> session *
-            {
-                return session_;
-            }
-            [[nodiscard]] auto operator->() const noexcept -> session *
-            {
-                return session_;
-            }
-            [[nodiscard]] auto operator*() const noexcept -> session &
-            {
-                return *session_;
-            }
-            [[nodiscard]] explicit operator bool() const noexcept
-            {
-                return session_ != nullptr;
-            }
-
-        private:
-            session_pool *pool_;
-            session *session_;
-        };
-
-        [[nodiscard]] auto acquire_scoped() -> result<scoped_session>;
-
-    private:
-        session_config config_;
-        std::vector<std::unique_ptr<session>> sessions_;
-        std::vector<bool> in_use_;
-        std::mutex mutex_;
-        std::condition_variable cv_;
+        explicit session(std::unique_ptr<impl> impl);
     };
 
 } // namespace l2net::ssh
-
-#endif // L2NET_HAS_SSH
