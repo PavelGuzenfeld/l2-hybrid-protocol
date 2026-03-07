@@ -4,6 +4,7 @@
 #include "l2net/ipc_channel.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <poll.h>
 
 namespace l2net
@@ -86,57 +87,72 @@ namespace l2net
 
     auto ipc_channel::receive() noexcept -> result<std::vector<std::uint8_t>>
     {
-        auto recv_result = socket_.receive(recv_buffer_);
-        if (!recv_result.has_value())
+        // retry on protocol mismatch to skip frames from other protocols
+        for (int attempts = 0; attempts < 100; ++attempts)
         {
-            return std::unexpected{recv_result.error()};
+            auto recv_result = socket_.receive(recv_buffer_);
+            if (!recv_result.has_value())
+            {
+                return std::unexpected{recv_result.error()};
+            }
+
+            auto const received = *recv_result;
+
+            frame_parser parser{std::span{recv_buffer_.data(), received}};
+            if (!parser.is_valid())
+            {
+                return std::unexpected{error_code::invalid_frame_size};
+            }
+
+            if (parser.ether_type() != config_.protocol_id)
+            {
+                continue;
+            }
+
+            auto const payload = parser.payload();
+            return std::vector<std::uint8_t>{payload.begin(), payload.end()};
         }
 
-        auto const received = *recv_result;
-
-        // parse frame
-        frame_parser parser{std::span{recv_buffer_.data(), received}};
-        if (!parser.is_valid())
-        {
-            return std::unexpected{error_code::invalid_frame_size};
-        }
-
-        // check protocol
-        if (parser.ether_type() != config_.protocol_id)
-        {
-            // not our protocol, could retry but for now return empty
-            return std::vector<std::uint8_t>{};
-        }
-
-        // extract payload
-        auto const payload = parser.payload();
-        return std::vector<std::uint8_t>{payload.begin(), payload.end()};
+        return std::unexpected{error_code::protocol_mismatch};
     }
 
     auto ipc_channel::receive_with_timeout(std::chrono::milliseconds const timeout) noexcept
         -> result<std::vector<std::uint8_t>>
     {
-        auto recv_result = socket_.receive_with_timeout(recv_buffer_, timeout);
-        if (!recv_result.has_value())
+        auto const deadline = std::chrono::steady_clock::now() + timeout;
+
+        while (true)
         {
-            return std::unexpected{recv_result.error()};
+            auto const remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now());
+
+            if (remaining.count() <= 0)
+            {
+                return std::unexpected{error_code::timeout};
+            }
+
+            auto recv_result = socket_.receive_with_timeout(recv_buffer_, remaining);
+            if (!recv_result.has_value())
+            {
+                return std::unexpected{recv_result.error()};
+            }
+
+            auto const received = *recv_result;
+
+            frame_parser parser{std::span{recv_buffer_.data(), received}};
+            if (!parser.is_valid())
+            {
+                return std::unexpected{error_code::invalid_frame_size};
+            }
+
+            if (parser.ether_type() != config_.protocol_id)
+            {
+                continue;
+            }
+
+            auto const payload = parser.payload();
+            return std::vector<std::uint8_t>{payload.begin(), payload.end()};
         }
-
-        auto const received = *recv_result;
-
-        frame_parser parser{std::span{recv_buffer_.data(), received}};
-        if (!parser.is_valid())
-        {
-            return std::unexpected{error_code::invalid_frame_size};
-        }
-
-        if (parser.ether_type() != config_.protocol_id)
-        {
-            return std::vector<std::uint8_t>{};
-        }
-
-        auto const payload = parser.payload();
-        return std::vector<std::uint8_t>{payload.begin(), payload.end()};
     }
 
     auto ipc_channel::try_receive() noexcept -> result<std::optional<std::vector<std::uint8_t>>>

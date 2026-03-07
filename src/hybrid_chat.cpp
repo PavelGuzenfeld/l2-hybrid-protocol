@@ -6,6 +6,7 @@
 #include "l2net/frame.hpp"
 
 #include <algorithm>
+#include <poll.h>
 
 namespace l2net
 {
@@ -27,13 +28,11 @@ namespace l2net
 
     hybrid_endpoint::hybrid_endpoint(hybrid_endpoint &&other) noexcept
         : interface_{std::move(other.interface_)}, config_{other.config_}, peer_mac_{other.peer_mac_},
-          data_socket_{std::move(other.data_socket_)}, running_{other.running_.load()}
+          data_socket_{std::move(other.data_socket_)}
     {
-        other.running_.store(false);
-        if (other.recv_thread_.joinable())
-        {
-            other.recv_thread_.join();
-        }
+        // stop other's receiver before taking ownership
+        other.stop_receiver();
+        other.send_running_.store(false);
     }
 
     auto hybrid_endpoint::operator=(hybrid_endpoint &&other) noexcept -> hybrid_endpoint &
@@ -41,12 +40,15 @@ namespace l2net
         if (this != &other)
         {
             stop_receiver();
+            send_running_.store(false);
+
+            other.stop_receiver();
+            other.send_running_.store(false);
+
             interface_ = std::move(other.interface_);
             config_ = other.config_;
             peer_mac_ = other.peer_mac_;
             data_socket_ = std::move(other.data_socket_);
-            running_.store(other.running_.load());
-            other.running_.store(false);
         }
         return *this;
     }
@@ -141,8 +143,7 @@ namespace l2net
         // check if it's our protocol (with or without vlan tag)
         if (parser.ether_type() != config_.data_protocol)
         {
-            // not our protocol
-            return std::unexpected{error_code::invalid_frame_size};
+            return std::unexpected{error_code::protocol_mismatch};
         }
 
         data_message msg;
@@ -163,12 +164,12 @@ namespace l2net
 
     auto hybrid_endpoint::start_receiver(message_callback callback) noexcept -> void_result
     {
-        if (running_.load())
+        if (recv_running_.load())
         {
             return {}; // already running
         }
 
-        running_.store(true);
+        recv_running_.store(true);
         recv_thread_ = std::thread{[this, cb = std::move(callback)]() { receiver_loop(cb); }};
 
         return {};
@@ -176,7 +177,7 @@ namespace l2net
 
     auto hybrid_endpoint::stop_receiver() noexcept -> void
     {
-        running_.store(false);
+        recv_running_.store(false);
         if (recv_thread_.joinable())
         {
             recv_thread_.join();
@@ -186,14 +187,15 @@ namespace l2net
     auto hybrid_endpoint::send_loop(std::function<std::vector<std::uint8_t>()> message_generator) noexcept
         -> void_result
     {
-        running_.store(true);
+        send_running_.store(true);
 
-        while (running_.load())
+        while (send_running_.load())
         {
             auto const data = message_generator();
             auto result = send_data(data);
             if (!result.has_value())
             {
+                send_running_.store(false);
                 return result;
             }
 
@@ -207,7 +209,7 @@ namespace l2net
     {
         std::vector<std::uint8_t> buffer(config_.recv_buffer_size);
 
-        while (running_.load())
+        while (recv_running_.load())
         {
             auto recv_result = data_socket_.receive_with_timeout(buffer, std::chrono::milliseconds{100});
 
@@ -259,14 +261,30 @@ namespace l2net
         auto run_server(std::uint16_t const port, mac_address const &local_mac,
                         std::chrono::seconds const timeout) noexcept -> result<mac_address>
         {
-            (void)timeout; // Suppress unused parameter warning
             auto server_result = tcp_socket::create_server(port);
             if (!server_result.has_value())
             {
                 return std::unexpected{server_result.error()};
             }
 
-            // TODO: add timeout to accept
+            // wait for incoming connection with timeout
+            struct pollfd pfd{};
+            pfd.fd = server_result->fd();
+            pfd.events = POLLIN;
+
+            auto const timeout_ms = static_cast<int>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
+            auto const poll_result = ::poll(&pfd, 1, timeout_ms);
+
+            if (poll_result < 0)
+            {
+                return std::unexpected{error_code::socket_recv_failed};
+            }
+            if (poll_result == 0)
+            {
+                return std::unexpected{error_code::timeout};
+            }
+
             auto client_result = server_result->accept();
             if (!client_result.has_value())
             {

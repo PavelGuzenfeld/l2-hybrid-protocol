@@ -4,18 +4,17 @@
 #include "l2net/ipc_channel.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <csignal>
 #include <fmt/format.h>
 
 namespace
 {
 
-    std::atomic<bool> g_running{true};
+    volatile std::sig_atomic_t g_running{1};
 
     auto signal_handler(int /*signal*/) -> void
     {
-        g_running.store(false);
+        g_running = 0;
     }
 
     auto print_usage(char const *program_name) -> void
@@ -37,7 +36,7 @@ namespace
         auto &channel = *channel_result;
         fmt::print("IPC Receiver: Listening on Proto 0x{:04X}...\n", l2net::constants::eth_p_ipc);
 
-        while (g_running.load())
+        while (g_running)
         {
             auto msg_result = channel.receive_with_timeout(std::chrono::milliseconds{100});
 

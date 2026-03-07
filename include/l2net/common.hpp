@@ -39,6 +39,8 @@ namespace l2net
         permission_denied,
         buffer_too_small,
         timeout,
+        socket_option_failed,
+        protocol_mismatch,
     };
 
     struct error_code_formatter
@@ -79,6 +81,10 @@ namespace l2net
                 return "buffer_too_small";
             case error_code::timeout:
                 return "timeout";
+            case error_code::socket_option_failed:
+                return "socket_option_failed";
+            case error_code::protocol_mismatch:
+                return "protocol_mismatch";
             }
             return "unknown_error";
         }

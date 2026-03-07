@@ -8,7 +8,6 @@
 #include "l2net/vlan.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -49,11 +48,11 @@ namespace
         return sock.send_raw(frame, iface);
     }
 
-    std::atomic<bool> g_running{true};
+    volatile std::sig_atomic_t g_running{1};
 
     auto signal_handler(int /*signal*/) -> void
     {
-        g_running.store(false);
+        g_running = 0;
     }
 
     // protocol for benchmark coordination
@@ -249,7 +248,7 @@ Examples:
         benchmark_stats stats{};
         stats.start_time = std::chrono::steady_clock::now();
 
-        while (g_running.load())
+        while (g_running)
         {
             auto recv_result = sock.receive_with_timeout(buffer, std::chrono::milliseconds{cfg.timeout_ms});
 
@@ -355,7 +354,7 @@ Examples:
         std::uint64_t last_packets = 0;
         std::uint64_t last_bytes = 0;
 
-        while (g_running.load())
+        while (g_running)
         {
             auto recv_result = sock.receive_with_timeout(buffer, std::chrono::milliseconds{cfg.timeout_ms});
 
@@ -467,7 +466,7 @@ Examples:
         stats.start_time = std::chrono::steady_clock::now();
         std::uint64_t seq = 0;
 
-        while (g_running.load() && (cfg.count == 0 || seq < cfg.count))
+        while (g_running && (cfg.count == 0 || seq < cfg.count))
         {
             // embed sequence number in payload
             if (payload.size() >= 9)
@@ -571,7 +570,7 @@ Examples:
 
             ++seq;
 
-            if (cfg.interval_us > 0 && g_running.load())
+            if (cfg.interval_us > 0 && g_running)
             {
                 std::this_thread::sleep_for(std::chrono::microseconds{cfg.interval_us});
             }
@@ -661,7 +660,7 @@ Examples:
         std::uint64_t last_packets = 0;
         std::uint64_t last_bytes = 0;
 
-        while (g_running.load() && (cfg.count == 0 || stats.packets_sent < cfg.count))
+        while (g_running && (cfg.count == 0 || stats.packets_sent < cfg.count))
         {
             auto send_result = sock.send_raw(frame, iface);
             if (send_result.has_value())
