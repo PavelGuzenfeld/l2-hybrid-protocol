@@ -194,6 +194,7 @@ if(L2NET_BUILD_TESTS)
         tests/unit/test_interface.cpp
         tests/unit/test_frame.cpp
         tests/unit/test_vlan.cpp
+        tests/unit/test_mtu.cpp
         tests/unit/test_edge_cases.cpp
     )
 
