@@ -8,12 +8,21 @@ High-performance Layer 2 raw socket networking library for Linux.
 
 ### Features
 
-- **Raw L2 Sockets** - Direct Ethernet frame transmission/reception
-- **802.1Q VLAN Support** - Priority tagging and VLAN segmentation
-- **High-Performance IPC** - Local messaging over loopback interface
-- **Hybrid Protocol Simulation** - TCP control plane + raw L2 data plane
-- **Remote Benchmarking** - SSH-based deployment and testing across networks
-- **Static Builds** - Portable binaries via musl/Alpine or static glibc
+- **Raw L2 Sockets** — Direct Ethernet frame transmission/reception via `AF_PACKET`
+- **802.1Q VLAN Support** — Priority tagging (PCP) and VLAN segmentation
+- **Zero-Copy Frame Building** — Builder pattern with `build_into()` for pre-allocated buffers
+- **High-Performance IPC** — Local messaging over loopback with custom EtherType isolation
+- **Hybrid Protocol** — TCP control plane + raw L2 data plane architecture
+- **Remote Benchmarking** — SSH-based deployment and cross-network testing
+- **Static Builds** — Portable binaries via musl/Alpine or static glibc
+
+### Design Principles
+
+- **No exceptions** — All error handling via `std::expected<T, error_code>`
+- **RAII everywhere** — Sockets, SSH sessions, channels automatically cleaned up
+- **Compile-time safety** — `constexpr`/`consteval` validation, `static_assert` on struct layout
+- **Strict warnings** — `-Wall -Wextra -Wpedantic -Werror` with conversion and shadow warnings
+- **Sanitizer-clean** — All tests pass under AddressSanitizer + UndefinedBehaviorSanitizer
 
 ## Requirements
 
@@ -24,8 +33,8 @@ High-performance Layer 2 raw socket networking library for Linux.
 - Root privileges for raw socket operations
 
 Optional:
-- libssl-dev (for SSH support - libssh is fetched automatically)
-- Docker (for musl static builds)
+- libssl-dev (for SSH support — libssh is fetched automatically)
+- Docker (for containerized builds and musl static builds)
 
 ## Build
 
@@ -39,6 +48,34 @@ cmake --build --preset debug
 # Release build
 cmake --preset release
 cmake --build --preset release
+```
+
+### Docker Build
+
+Build and test in an isolated environment with all dependencies:
+
+```bash
+# Build the dev image
+docker build -t l2net-dev -f- . <<'DOCKERFILE'
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y \
+    g++-14 cmake ninja-build pkg-config \
+    libssh-dev libssl-dev ca-certificates git \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
+WORKDIR /src
+COPY . .
+RUN cmake --preset debug && cmake --build --preset debug
+DOCKERFILE
+
+# Run unit tests
+docker run --rm l2net-dev ./build/debug/bin/l2net_unit_tests
+
+# Run integration tests (requires --privileged for raw sockets)
+docker run --rm --privileged l2net-dev ./build/debug/bin/l2net_integration_tests
+
+# Run benchmarks
+docker run --rm --privileged l2net-dev ./build/debug/bin/l2net_benchmarks
 ```
 
 ### Build Options
@@ -92,11 +129,13 @@ cmake --build build/static
 
 ```bash
 # Unit tests (no root required)
-./build/release/bin/l2net_unit_tests
+./build/debug/bin/l2net_unit_tests
 
-# Integration tests (root required)
-sudo ./build/release/bin/l2net_integration_tests
+# Integration tests (root required for raw sockets)
+sudo ./build/debug/bin/l2net_integration_tests
 ```
+
+Tests run with ASan + UBSan enabled by default in Debug builds.
 
 ## Benchmark
 
@@ -133,7 +172,7 @@ Comparison between `l2net` (Raw L2) and standard `SOCK_DGRAM` (UDP) on loopback 
 | Metric | L2Net (Raw) | UDP (Standard) | Note |
 |:-------|:-----------:|:--------------:|:-----|
 | Roundtrip Latency | 990 ns | 936 ns | Comparable (Loopback) |
-| Socket Creation | **16,244 µs** | 1.2 µs | Raw sockets are expensive to create |
+| Socket Creation | **16,244 us** | 1.2 us | Raw sockets are expensive to create |
 
 ### Remote Network Performance
 
@@ -149,11 +188,11 @@ Real network benchmarks between NVIDIA Jetson Xavier and Raspberry Pi over Ether
 
 | Payload | Pi (LAN) | Pi (WiFi) | Notes |
 |:--------|:-----------:|:----:|:------|
-| 64 B    | 377 µs (p99: 419 µs) | 377 µs (p99: 428 µs) | Near-identical |
-| 256 B   | 382 µs (p99: 426 µs) | 385 µs (p99: 430 µs) | |
-| 512 B   | 390 µs (p99: 428 µs) | 392 µs (p99: 431 µs) | |
-| 1024 B  | 417 µs (p99: 484 µs) | 413 µs (p99: 467 µs) | |
-| 1400 B  | 429 µs (p99: 474 µs) | 431 µs (p99: 466 µs) | |
+| 64 B    | 377 us (p99: 419 us) | 377 us (p99: 428 us) | Near-identical |
+| 256 B   | 382 us (p99: 426 us) | 385 us (p99: 430 us) | |
+| 512 B   | 390 us (p99: 428 us) | 392 us (p99: 431 us) | |
+| 1024 B  | 417 us (p99: 484 us) | 413 us (p99: 467 us) | |
+| 1400 B  | 429 us (p99: 474 us) | 431 us (p99: 466 us) | |
 
 #### Throughput
 
@@ -169,10 +208,10 @@ Real network benchmarks between NVIDIA Jetson Xavier and Raspberry Pi over Ether
 
 1. **Massive Loopback Throughput:** Bypassing the kernel stack yields **3.5x speedup** for small packets where header processing dominates CPU time.
 2. **Jumbo Frame Saturation:** With 8KB jumbo frames, the library achieves **8.0 Gi/s**, nearly saturating a theoretical 10Gb link.
-3. **Consistent Remote Latency:** ~380-430 µs average RTT with tight p99 (~10-15% above average).
+3. **Consistent Remote Latency:** ~380-430 us average RTT with tight p99 (~10-15% above average).
 4. **Zero Packet Loss:** All remote tests completed with 0% loss.
 5. **WiFi vs 100Mbps Ethernet:** Pi WiFi outperformed 100Mbps wired link at larger payloads (919 vs 604 Mbps).
-6. **Initialization Cost:** Creating a raw socket takes ~16ms vs ~1µs for UDP. **Design Tip:** Initialize sockets at startup, never per-packet.
+6. **Initialization Cost:** Creating a raw socket takes ~16ms vs ~1us for UDP. **Design Tip:** Initialize sockets at startup, never per-packet.
 
 ## Applications
 
@@ -273,6 +312,19 @@ channel->send("message");
 auto msg = channel->receive_with_timeout(std::chrono::milliseconds{100});
 ```
 
+### Error Handling
+
+All operations return `std::expected<T, error_code>` — no exceptions thrown:
+
+```cpp
+auto result = l2net::raw_socket::create_bound(iface);
+if (!result.has_value()) {
+    fmt::print(stderr, "Error: {}\n", result.error());
+    return 1;
+}
+auto& socket = *result;
+```
+
 ## Protocol Constants
 
 | Protocol | EtherType |
@@ -288,23 +340,23 @@ Default VLAN: ID `10`, Priority `7`
 
 ```
 l2net/
-├── include/l2net/     # Public headers
-│   ├── common.hpp     # Error codes, mac_address, utilities
-│   ├── frame.hpp      # Frame building and parsing
-│   ├── vlan.hpp       # 802.1Q VLAN support
-│   ├── raw_socket.hpp # Socket abstraction
-│   ├── interface.hpp  # Network interface queries
-│   ├── ipc_channel.hpp# Local IPC
-│   ├── hybrid_chat.hpp# TCP+L2 hybrid protocol
-│   └── ssh_session.hpp# SSH for remote ops
-├── src/               # Implementation
-├── apps/              # Example applications
-├── tests/             # Unit and integration tests
-├── bench/             # Benchmarks
-├── cmake/             # CMake modules
-└── scripts/           # Build and utility scripts
+├── include/l2net/      # Public headers
+│   ├── common.hpp      # Error codes, mac_address, byte utilities
+│   ├── frame.hpp       # Frame building and parsing
+│   ├── vlan.hpp        # 802.1Q VLAN support
+│   ├── raw_socket.hpp  # Raw + TCP socket abstraction
+│   ├── interface.hpp   # Network interface queries (ioctl/getifaddrs)
+│   ├── ipc_channel.hpp # Local IPC over loopback
+│   ├── hybrid_chat.hpp # TCP+L2 hybrid protocol endpoint
+│   └── ssh_session.hpp # SSH session/pool for remote ops
+├── src/                # Implementation
+├── apps/               # Example applications
+├── tests/              # Unit and integration tests (doctest)
+├── bench/              # Benchmarks (nanobench)
+├── cmake/              # CMake modules (musl toolchain)
+└── scripts/            # Build and utility scripts
 ```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.

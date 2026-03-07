@@ -26,11 +26,11 @@
 namespace
 {
 
-    std::atomic<bool> g_running{true};
+    volatile std::sig_atomic_t g_running{1};
 
     auto signal_handler(int /*signal*/) -> void
     {
-        g_running.store(false);
+        g_running = 0;
     }
 
     // =============================================================================
@@ -318,7 +318,7 @@ namespace
         fmt::print(fmt::fg(fmt::color::yellow), "\n=== Running Latency Tests ===\n\n");
         results_.latency_results = run_latency_tests();
 
-        if (!g_running.load())
+        if (!g_running)
         {
             print_status("benchmark interrupted");
             cleanup_remote();
@@ -478,7 +478,7 @@ namespace
         std::vector<latency_result> results;
         results.reserve(config_.payload_sizes.size());
 
-        for (std::size_t i = 0; i < config_.payload_sizes.size() && g_running.load(); ++i)
+        for (std::size_t i = 0; i < config_.payload_sizes.size() && g_running; ++i)
         {
             print_progress("latency", i + 1, config_.payload_sizes.size());
 
@@ -507,7 +507,7 @@ namespace
         std::vector<throughput_result> results;
         results.reserve(config_.payload_sizes.size());
 
-        for (std::size_t i = 0; i < config_.payload_sizes.size() && g_running.load(); ++i)
+        for (std::size_t i = 0; i < config_.payload_sizes.size() && g_running; ++i)
         {
             print_progress("throughput", i + 1, config_.payload_sizes.size());
 

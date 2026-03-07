@@ -14,6 +14,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <netpacket/packet.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <thread>
@@ -122,7 +123,7 @@ namespace l2net
             tv.tv_usec = (ms % 1000) * 1000;
             if (::setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -134,7 +135,7 @@ namespace l2net
             tv.tv_usec = (ms % 1000) * 1000;
             if (::setsockopt(fd_, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -143,7 +144,7 @@ namespace l2net
             int const opt = 1;
             if (::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -152,7 +153,7 @@ namespace l2net
             int const opt = 1;
             if (::setsockopt(fd_, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -161,7 +162,7 @@ namespace l2net
             int const size = *opts.recv_buffer_size;
             if (::setsockopt(fd_, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -170,7 +171,7 @@ namespace l2net
             int const size = *opts.send_buffer_size;
             if (::setsockopt(fd_, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0)
             {
-                return std::unexpected{error_code::socket_bind_failed};
+                return std::unexpected{error_code::socket_option_failed};
             }
         }
 
@@ -375,7 +376,6 @@ namespace l2net
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
 
-        // need null-terminated string for inet_pton
         std::string ip_str{ip};
         if (::inet_pton(AF_INET, ip_str.c_str(), &addr.sin_addr) != 1)
         {
@@ -383,19 +383,56 @@ namespace l2net
             return std::unexpected{error_code::connection_failed};
         }
 
-        auto const deadline = std::chrono::steady_clock::now() + timeout;
-
-        while (std::chrono::steady_clock::now() < deadline)
+        // set non-blocking for connect with timeout
+        int const flags = ::fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
         {
-            if (::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0)
-            {
-                return tcp_socket{fd};
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds{100});
+            ::close(fd);
+            return std::unexpected{error_code::connection_failed};
         }
 
-        ::close(fd);
-        return std::unexpected{error_code::connection_failed};
+        auto const rc = ::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+        if (rc < 0 && errno != EINPROGRESS)
+        {
+            ::close(fd);
+            return std::unexpected{error_code::connection_failed};
+        }
+
+        if (rc != 0)
+        {
+            // wait for connection to complete
+            struct pollfd pfd{};
+            pfd.fd = fd;
+            pfd.events = POLLOUT;
+
+            auto const timeout_ms = static_cast<int>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
+            auto const poll_result = ::poll(&pfd, 1, timeout_ms);
+
+            if (poll_result <= 0)
+            {
+                ::close(fd);
+                return std::unexpected{error_code::timeout};
+            }
+
+            // check for connection error
+            int so_error = 0;
+            socklen_t len = sizeof(so_error);
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_error, &len) < 0 || so_error != 0)
+            {
+                ::close(fd);
+                return std::unexpected{error_code::connection_failed};
+            }
+        }
+
+        // restore blocking mode
+        if (::fcntl(fd, F_SETFL, flags) < 0)
+        {
+            ::close(fd);
+            return std::unexpected{error_code::connection_failed};
+        }
+
+        return tcp_socket{fd};
     }
 
     auto tcp_socket::send(std::span<std::uint8_t const> data) const noexcept -> result<std::size_t>

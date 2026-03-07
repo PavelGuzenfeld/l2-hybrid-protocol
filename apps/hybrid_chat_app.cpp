@@ -4,18 +4,17 @@
 #include "l2net/hybrid_chat.hpp"
 #include "l2net/interface.hpp"
 
-#include <atomic>
 #include <csignal>
 #include <fmt/format.h>
 
 namespace
 {
 
-    std::atomic<bool> g_running{true};
+    volatile std::sig_atomic_t g_running{1};
 
     auto signal_handler(int /*signal*/) -> void
     {
-        g_running.store(false);
+        g_running = 0;
     }
 
     auto print_usage(char const *program_name) -> void
@@ -44,17 +43,18 @@ namespace
         fmt::print("[Data Plane] Listening for data...\n");
 
         // receive loop
-        while (g_running.load())
+        while (g_running)
         {
             auto msg_result = endpoint.receive_data();
             if (!msg_result.has_value())
             {
-                if (msg_result.error() == l2net::error_code::timeout)
+                if (msg_result.error() == l2net::error_code::timeout ||
+                    msg_result.error() == l2net::error_code::protocol_mismatch)
                 {
                     continue;
                 }
-                // silently ignore non-matching frames
-                continue;
+                fmt::print(stderr, "Receive error: {}\n", msg_result.error());
+                break;
             }
 
             auto const &msg = *msg_result;
@@ -92,7 +92,7 @@ namespace
 
         // send loop
         std::string const message = "HIGH PRIORITY DATA";
-        while (g_running.load())
+        while (g_running)
         {
             auto result = endpoint.send_data(message);
             if (!result.has_value())

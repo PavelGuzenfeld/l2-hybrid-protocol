@@ -533,6 +533,8 @@ TEST_SUITE("error_code_edge_cases")
         CHECK(error_code_formatter::to_string(error_code::permission_denied) != "unknown_error");
         CHECK(error_code_formatter::to_string(error_code::buffer_too_small) != "unknown_error");
         CHECK(error_code_formatter::to_string(error_code::timeout) != "unknown_error");
+        CHECK(error_code_formatter::to_string(error_code::socket_option_failed) != "unknown_error");
+        CHECK(error_code_formatter::to_string(error_code::protocol_mismatch) != "unknown_error");
     }
 
     TEST_CASE("invalid error code gives unknown")

@@ -119,6 +119,10 @@ namespace l2net
         {
             return fd_ >= 0;
         }
+        [[nodiscard]] constexpr auto fd() const noexcept -> int
+        {
+            return fd_;
+        }
 
         auto close() noexcept -> void;
 

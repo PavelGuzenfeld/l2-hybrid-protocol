@@ -59,7 +59,8 @@ namespace l2net
         hybrid_config config_;
         mac_address peer_mac_;
         raw_socket data_socket_;
-        std::atomic<bool> running_{false};
+        std::atomic<bool> recv_running_{false};
+        std::atomic<bool> send_running_{false};
         std::thread recv_thread_;
 
     public:
@@ -120,7 +121,7 @@ namespace l2net
         }
         [[nodiscard]] auto is_running() const noexcept -> bool
         {
-            return running_.load();
+            return recv_running_.load() || send_running_.load();
         }
 
     private:

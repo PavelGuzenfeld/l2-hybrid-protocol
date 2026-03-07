@@ -16,12 +16,37 @@
 #include <fcntl.h>
 #include <fmt/format.h>
 #include <fstream>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+#pragma GCC diagnostic pop
 #include <sys/stat.h>
 
 namespace l2net::ssh
 {
+
+    namespace
+    {
+        // escape single quotes for safe shell interpolation
+        [[nodiscard]] auto shell_escape(std::string_view input) -> std::string
+        {
+            std::string result;
+            result.reserve(input.size() + 10);
+            for (auto const ch : input)
+            {
+                if (ch == '\'')
+                {
+                    result += "'\\''";
+                }
+                else
+                {
+                    result += ch;
+                }
+            }
+            return result;
+        }
+    } // anonymous namespace
 
     // =============================================================================
     // session implementation
@@ -358,6 +383,11 @@ namespace l2net::ssh
         return upload_data(data, remote_path, mode);
     }
 
+// libssh deprecated SCP in favor of SFTP, but SFTP has worse error handling
+// and SCP is simpler for single-file transfers. Suppress until migration.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
     auto session::upload_data(std::span<std::uint8_t const> data, std::string_view remote_path, int mode)
         -> result<void>
     {
@@ -409,6 +439,12 @@ namespace l2net::ssh
         ssh_scp_free(scp);
         return {};
     }
+
+#pragma GCC diagnostic pop // -Wdeprecated-declarations (upload_data)
+
+// Re-suppress for download_file which also uses SCP
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
     auto session::download_file(std::string_view remote_path, std::filesystem::path const &local_path) -> result<void>
     {
@@ -465,9 +501,11 @@ namespace l2net::ssh
         return {};
     }
 
+#pragma GCC diagnostic pop // -Wdeprecated-declarations (download_file)
+
     auto session::file_exists(std::string_view remote_path) -> result<bool>
     {
-        auto result = execute(fmt::format("test -f '{}' && echo 'yes' || echo 'no'", remote_path));
+        auto result = execute(fmt::format("test -f '{}' && echo 'yes' || echo 'no'", shell_escape(remote_path)));
         if (!result.has_value())
         {
             return std::unexpected{result.error()};
@@ -478,7 +516,7 @@ namespace l2net::ssh
 
     auto session::make_directory(std::string_view remote_path) -> result<void>
     {
-        auto result = execute(fmt::format("mkdir -p '{}'", remote_path));
+        auto result = execute(fmt::format("mkdir -p '{}'", shell_escape(remote_path)));
         if (!result.has_value())
         {
             return std::unexpected{result.error()};
@@ -492,7 +530,7 @@ namespace l2net::ssh
 
     auto session::remove_file(std::string_view remote_path) -> result<void>
     {
-        auto result = execute(fmt::format("rm -f '{}'", remote_path));
+        auto result = execute(fmt::format("rm -f '{}'", shell_escape(remote_path)));
         if (!result.has_value())
         {
             return std::unexpected{result.error()};
