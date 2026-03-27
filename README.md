@@ -360,3 +360,7 @@ l2net/
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+> **[Documentation and design notes on pavelguzenfeld.com](https://pavelguzenfeld.com/projects/l2-hybrid-protocol/)**
